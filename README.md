@@ -7,7 +7,7 @@ App gratuito e de código aberto para macOS que fica na barra de menu e permite:
 - **Alternar entre apps estilo Windows**: arraste com 3 dedos para os lados, escolha o app e solte os dedos
 - **Gestos no trackpad**: arrastar com 3 ou 4 dedos (cima/baixo/esquerda/direita) e tocar com 3, 4 ou 5 dedos
 - **Atalhos de teclado globais** e remapeamento de combinações
-- **Print com ⌘⇧S**: copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
+- **Print com ⌘⇧S**: congela a tela durante a seleção, copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
 
 Ações disponíveis para gestos e atalhos: Mostrar a Mesa, Mission Control, App Exposé, trocar de mesa (Space),
 fechar/minimizar/maximizar/centralizar janela, metade esquerda/direita, tela cheia, encerrar/ocultar app,

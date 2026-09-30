@@ -268,10 +268,11 @@ private struct ScreenshotTab: View {
                 Group {
                     Toggle("Copiar o print para a área de transferência", isOn: $store.settings.screenshot.copyToClipboard)
                     Toggle("Também salvar o arquivo na pasta de capturas (Mesa)", isOn: $store.settings.screenshot.saveToDesktop)
+                    Toggle("Congelar a tela enquanto seleciono a área", isOn: $store.settings.screenshot.freezeScreen)
                 }
                 .disabled(!store.settings.screenshot.enabled)
             } footer: {
-                Text("Arraste para escolher a área (Espaço captura uma janela inteira, Esc cancela). O print vai na hora para a área de transferência e aparece uma miniatura no canto da tela: clique nela para abrir na Pré-Visualização, ou arraste para soltar o arquivo em outro app. Em alguns apps ⌘⇧S é \"Salvar como…\"; com esta opção ligada, o print tem prioridade.")
+                Text("Arraste para escolher a área (Esc cancela). Com a tela congelada, vídeos e animações param até você terminar a seleção; sem congelar, Espaço captura uma janela inteira. O print vai na hora para a área de transferência e aparece uma miniatura no canto da tela: clique nela para abrir na Pré-Visualização, ou arraste para soltar o arquivo em outro app. Em alguns apps ⌘⇧S é \"Salvar como…\"; com esta opção ligada, o print tem prioridade.")
                     .foregroundStyle(.secondary)
             }
 

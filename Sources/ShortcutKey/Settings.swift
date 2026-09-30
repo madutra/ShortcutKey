@@ -292,6 +292,7 @@ struct ScreenshotSettings: Codable, Equatable {
     var enabled = true
     var copyToClipboard = true
     var saveToDesktop = false
+    var freezeScreen = true
 
     init() {}
 
@@ -301,6 +302,7 @@ struct ScreenshotSettings: Codable, Equatable {
         enabled = c.value(.enabled, d.enabled)
         copyToClipboard = c.value(.copyToClipboard, d.copyToClipboard)
         saveToDesktop = c.value(.saveToDesktop, d.saveToDesktop)
+        freezeScreen = c.value(.freezeScreen, d.freezeScreen)
     }
 }
 

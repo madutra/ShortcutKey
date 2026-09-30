@@ -1,4 +1,5 @@
 import AppKit
+import ScreenCaptureKit
 
 /// ⌘⇧S: seleciona uma área (Espaço alterna para janela), copia na hora para a área de transferência
 /// e mostra uma miniatura no canto da tela. Clicar nela abre o print na Pré-Visualização.
@@ -8,18 +9,37 @@ final class ScreenshotController {
     private var isCapturing = false
     private var thumbnail: ScreenshotThumbnail?
 
+    private let freezer = ScreenFreezer()
+
     func capture() {
         guard !isCapturing else { return }
         isCapturing = true
         thumbnail?.dismiss(animated: false)
 
+        guard SettingsStore.shared.settings.screenshot.freezeScreen else {
+            runScreencapture(frozen: false)
+            return
+        }
+        // Congela a tela: mostra uma foto de cada monitor por cima de tudo e seleciona em cima dela.
+        freezer.freeze { [weak self] frozen in
+            // Um instante para a imagem congelada aparecer antes da seleção começar.
+            DispatchQueue.main.asyncAfter(deadline: .now() + (frozen ? 0.05 : 0)) {
+                self?.runScreencapture(frozen: frozen)
+            }
+        }
+    }
+
+    private func runScreencapture(frozen: Bool) {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("ShortcutKey-\(UUID().uuidString).png")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        process.arguments = ["-i", tempURL.path] // seleção interativa, com o som padrão
+        // -i: seleção interativa, com o som padrão. Com a tela congelada, só seleção de área (-s):
+        // o modo janela (Espaço) pegaria a imagem congelada inteira em vez de uma janela.
+        process.arguments = (frozen ? ["-i", "-s"] : ["-i"]) + [tempURL.path]
         process.terminationHandler = { _ in
             DispatchQueue.main.async {
+                self.freezer.unfreeze()
                 self.isCapturing = false
                 self.finish(tempURL)
             }
@@ -27,6 +47,7 @@ final class ScreenshotController {
         do {
             try process.run()
         } catch {
+            freezer.unfreeze()
             isCapturing = false
             Log.write("print: falha ao abrir o screencapture: \(error)")
         }
@@ -87,6 +108,86 @@ final class ScreenshotController {
         let preview = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Preview")
             ?? URL(fileURLWithPath: "/System/Applications/Preview.app")
         NSWorkspace.shared.open([url], withApplicationAt: preview, configuration: NSWorkspace.OpenConfiguration())
+    }
+}
+
+// MARK: - Congelar a tela
+
+/// Tira uma foto de cada monitor e mostra por cima de tudo, para a tela "parar" durante a seleção.
+final class ScreenFreezer {
+    private var windows: [NSWindow] = []
+
+    /// Chama `completion(true)` com a tela congelada, ou `false` se não deu (ex.: sem Gravação de Tela).
+    func freeze(completion: @escaping (Bool) -> Void) {
+        // Lê as telas aqui (thread principal); a captura roda em segundo plano.
+        let targets = NSScreen.screens.compactMap { screen -> ScreenTarget? in
+            guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+            else { return nil }
+            return ScreenTarget(displayID: id, frame: screen.frame, scale: screen.backingScaleFactor)
+        }
+        Task {
+            let shots = await Self.capture(targets)
+            await MainActor.run {
+                guard !shots.isEmpty else {
+                    completion(false)
+                    return
+                }
+                for shot in shots { self.show(shot.image, frame: shot.frame) }
+                completion(true)
+            }
+        }
+    }
+
+    func unfreeze() {
+        windows.forEach { $0.orderOut(nil) }
+        windows.removeAll()
+    }
+
+    private func show(_ image: CGImage, frame: CGRect) {
+        let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.level = .screenSaver
+        window.isOpaque = true
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        let view = NSImageView(frame: NSRect(origin: .zero, size: frame.size))
+        view.image = NSImage(cgImage: image, size: frame.size)
+        view.imageScaling = .scaleAxesIndependently
+        window.contentView = view
+        window.setFrame(frame, display: true)
+        window.orderFrontRegardless()
+        windows.append(window)
+    }
+
+    private struct ScreenTarget: Sendable {
+        let displayID: CGDirectDisplayID
+        let frame: CGRect
+        let scale: CGFloat
+    }
+
+    private struct Shot: @unchecked Sendable {
+        let frame: CGRect
+        let image: CGImage
+    }
+
+    private static func capture(_ targets: [ScreenTarget]) async -> [Shot] {
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else {
+            return []
+        }
+        var shots: [Shot] = []
+        for display in content.displays {
+            guard let target = targets.first(where: { $0.displayID == display.displayID }) else { continue }
+            let config = SCStreamConfiguration()
+            config.width = Int(target.frame.width * target.scale)
+            config.height = Int(target.frame.height * target.scale)
+            config.showsCursor = false
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            if let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) {
+                shots.append(Shot(frame: target.frame, image: image))
+            }
+        }
+        return shots
     }
 }
 
