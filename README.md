@@ -4,7 +4,8 @@ App gratuito e de código aberto para macOS que fica na barra de menu e permite:
 
 - **Encerrar apps de verdade** ao fechar a última janela (botão vermelho ou ⌘W)
 - **Mudar o que os botões vermelho, amarelo e verde fazem** (encerrar, ocultar, minimizar, maximizar sem tela cheia…)
-- **Alternar entre apps estilo Windows**: arraste com 3 dedos para os lados, escolha o app e solte os dedos
+- **Deslizar entre apps com 3 dedos**: igual à troca de apps em tela cheia do macOS, mas com qualquer app aberto (funciona também com o Organizador Visual)
+- **Alternador de apps e janelas estilo AltTab** pelo teclado (⌥⇥), com miniaturas, ícones ou títulos
 - **Gestos no trackpad**: arrastar com 3 ou 4 dedos (cima/baixo/esquerda/direita) e tocar com 3, 4 ou 5 dedos
 - **Atalhos de teclado globais** e remapeamento de combinações
 - **Print com ⌘⇧S**: congela a tela durante a seleção, copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
@@ -84,7 +85,8 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 | `Accessibility.swift` | Utilitários da API de Acessibilidade |
 | `Settings.swift` | Modelos e armazenamento das configurações |
 | `SettingsView.swift` | Tela de configurações (SwiftUI) |
-| `Switcher.swift`, `SwitcherView.swift` | Alternador de apps/janelas (estilo AltTab) |
+| `AppSwipe.swift` | Deslizar entre apps com o trackpad (animação e fotos dos apps) |
+| `Switcher.swift`, `SwitcherView.swift` | Alternador de apps/janelas pelo teclado (estilo AltTab) |
 | `scripts/make-icon.swift` | Desenha o ícone (Daruma original) e gera `Resources/AppIcon.icns` |
 
 ## Licença

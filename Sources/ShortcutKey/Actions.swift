@@ -45,42 +45,6 @@ enum KeyCode {
     static let rightArrow: CGKeyCode = 124
 }
 
-// MARK: - Alternador de apps (⌘⇥ segurado)
-
-/// Segura ⌘ enquanto os dedos estão no trackpad e manda ⇥ / ⇧⇥ a cada passo do arraste,
-/// usando o seletor de apps nativo do macOS. Soltar os dedos solta o ⌘ e troca de app.
-enum AppSwitcher {
-    private static let commandKey: CGKeyCode = 55
-    private(set) static var isActive = false
-
-    static func begin(forward: Bool) {
-        guard !isActive else { return }
-        isActive = true
-        postCommand(down: true)
-        step(forward: forward)
-    }
-
-    static func step(forward: Bool) {
-        guard isActive else { return }
-        InputSender.key(KeyCode.tab, flags: forward ? .maskCommand : [.maskCommand, .maskShift])
-    }
-
-    static func end() {
-        guard isActive else { return }
-        isActive = false
-        postCommand(down: false)
-    }
-
-    private static func postCommand(down: Bool) {
-        let source = CGEventSource(stateID: .hidSystemState)
-        guard let event = CGEvent(keyboardEventSource: source, virtualKey: commandKey, keyDown: down) else { return }
-        event.type = .flagsChanged
-        event.flags = down ? .maskCommand : []
-        event.setIntegerValueField(.eventSourceUserData, value: syntheticEventMarker)
-        event.post(tap: .cghidEventTap)
-    }
-}
-
 // MARK: - Dock / Mission Control
 
 enum Dock {

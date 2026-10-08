@@ -98,6 +98,12 @@ final class AppController: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { SwitcherController.shared.cancel() }
         }
 
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("app.shortcutkey.debug.appSwipe"), object: nil, queue: .main
+        ) { _ in AppSwipeController.shared.debugSnapshot() }
+
+        AppSnapshots.shared.start()
+
         GestureEngine.shared.onGesture = { [weak self] gesture in self?.lastGesture = gesture }
         restartTrackpad()
 

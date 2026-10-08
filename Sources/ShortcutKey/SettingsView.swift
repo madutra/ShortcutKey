@@ -170,12 +170,16 @@ private struct TrackpadTab: View {
             .disabled(!store.settings.gesturesEnabled)
 
             Section {
-                LabeledContent("Alternar entre apps") {
-                    Text(store.settings.appSwitcher.title).foregroundStyle(.secondary)
+                Picker("Gesto", selection: $store.settings.appSwipe) {
+                    ForEach(AppSwipeGesture.allCases) { Text($0.title).tag($0) }
                 }
+            } header: {
+                Text("Deslizar entre apps")
             } footer: {
-                Text("Configure na aba Alternador.").foregroundStyle(.secondary)
+                Text("Igual à troca de apps em tela cheia do macOS, mas com qualquer app aberto: a tela acompanha os dedos e o app vizinho entra pelo lado. Solte depois da metade (ou num movimento rápido) para trocar. A ordem dos apps é fixa, como as Mesas. A animação usa a permissão de Gravação de Tela; sem ela, a troca acontece sem animação.")
+                    .foregroundStyle(.secondary)
             }
+            .disabled(!store.settings.gesturesEnabled)
 
             gestureSection("Arrastar com 4 dedos", Gesture.swipes4)
             gestureSection("Arrastar com 3 dedos", Gesture.swipes3)
@@ -187,9 +191,9 @@ private struct TrackpadTab: View {
     private func gestureSection(_ title: String, _ gestures: [Gesture]) -> some View {
         Section(title) {
             ForEach(gestures) { gesture in
-                if store.settings.isReservedByAppSwitcher(gesture) {
+                if store.settings.isReservedByAppSwipe(gesture) {
                     LabeledContent(gesture.title) {
-                        Text("Alternar entre apps").foregroundStyle(.secondary)
+                        Text("Deslizar entre apps").foregroundStyle(.secondary)
                     }
                 } else {
                     ActionPicker(title: gesture.title, binding: store.gestureBinding(gesture))

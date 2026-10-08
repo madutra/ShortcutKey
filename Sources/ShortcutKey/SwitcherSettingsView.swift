@@ -12,7 +12,7 @@ struct SwitcherTab: View {
             Section {
                 Toggle("Usar o alternador do ShortcutKey", isOn: switcher.enabled)
             } footer: {
-                Text("Desligado, o gesto do trackpad usa o ⌘⇥ padrão do macOS.")
+                Text("Alternador de apps e janelas pelo teclado (⌥⇥), estilo AltTab.")
                     .foregroundStyle(.secondary)
             }
 
@@ -91,13 +91,10 @@ struct SwitcherTab: View {
                     .frame(width: 140)
             }
             Toggle("Substituir o ⌘⇥ do macOS", isOn: switcher.replaceCommandTab)
-            Picker("Gesto do trackpad", selection: $store.settings.appSwitcher) {
-                ForEach(AppSwitcherGesture.allCases) { Text($0.title).tag($0) }
-            }
         } header: {
             Text("Controles")
         } footer: {
-            Text("Segure o modificador (ex.: ⌥) e aperte ⇥ para avançar, ⇧ para voltar; solte para trocar. Com o alternador aberto: ← → navegam, Esc cancela, Return escolhe. No trackpad: arraste para o lado e solte os dedos.")
+            Text("Segure o modificador (ex.: ⌥) e aperte ⇥ para avançar, ⇧ para voltar; solte para trocar. Com o alternador aberto: ← → navegam, Esc cancela, Return escolhe. Para trocar de app pelo trackpad, veja \"Deslizar entre apps\" na aba Trackpad.")
                 .foregroundStyle(.secondary)
         }
     }

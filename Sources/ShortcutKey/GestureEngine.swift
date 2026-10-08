@@ -12,8 +12,8 @@ final class GestureEngine {
     private let swipeDistance = 0.12
     private let tapMaxDuration = 0.30
     private let tapMaxMovement = 0.04
-    private let switcherStartDistance = 0.06
-    private let switcherStepDistance = 0.08
+    /// Quanto arrastar para o lado antes de a tela começar a deslizar entre apps.
+    private let appSwipeStartDistance = 0.03
 
     private struct Session {
         var startTime: Double
@@ -22,10 +22,10 @@ final class GestureEngine {
         var anchor: (x: Double, y: Double)?
         var maxMovement = 0.0
         var fired = false
-        /// Alternador de apps aberto; guarda o X do último passo.
-        var switcherLastX: Double?
-        /// true = alternador do ShortcutKey; false = ⌘⇥ do macOS.
-        var usesOwnSwitcher = false
+        /// Imagens do "deslizar entre apps" sendo preparadas (os dedos encostaram).
+        var appSwipePrepared = false
+        /// A tela está acompanhando os dedos.
+        var appSwiping = false
     }
 
     private let lock = NSLock()
@@ -43,7 +43,7 @@ final class GestureEngine {
     func stop() {
         SKMultitouchStop()
         lock.withLock {
-            AppSwitcher.end()
+            if let session { finishAppSwipe(session) }
             session = nil
         }
     }
@@ -78,19 +78,16 @@ final class GestureEngine {
     private func update(fingers: Int, xs: [Double], ys: [Double], timestamp: Double) -> Gesture? {
         let settings = SettingsStore.shared.current
         guard settings.gesturesEnabled else {
-            AppSwitcher.end()
+            if let session { finishAppSwipe(session) }
             session = nil
             return nil
         }
 
-        // Levantou algum dedo com o alternador aberto: solta o ⌘ e troca de app.
-        if var s = session, s.switcherLastX != nil, fingers < s.maxFingers {
-            if s.usesOwnSwitcher {
-                DispatchQueue.main.async { SwitcherController.shared.triggerReleased() }
-            } else {
-                AppSwitcher.end()
-            }
-            s.switcherLastX = nil
+        // Levantou algum dedo: termina o deslizar entre apps (troca ou volta).
+        if var s = session, s.appSwipePrepared, fingers < s.maxFingers {
+            finishAppSwipe(s)
+            s.appSwipePrepared = false
+            s.appSwiping = false
             session = s
         }
 
@@ -106,6 +103,7 @@ final class GestureEngine {
         var s = session ?? Session(startTime: timestamp)
         let cx = xs.reduce(0, +) / Double(fingers)
         let cy = ys.reduce(0, +) / Double(fingers)
+        let swipeFingers = settings.appSwipe.fingers
 
         if fingers != s.currentFingers {
             s.currentFingers = fingers
@@ -113,6 +111,14 @@ final class GestureEngine {
                 s.maxFingers = fingers
                 s.anchor = (cx, cy)
                 s.maxMovement = 0
+                // Encostou o número de dedos do gesto: já prepara as imagens das telas.
+                if fingers == swipeFingers, !s.appSwipePrepared {
+                    s.appSwipePrepared = true
+                    DispatchQueue.main.async { AppSwipeController.shared.prepare() }
+                } else if s.appSwipePrepared, !s.appSwiping {
+                    s.appSwipePrepared = false
+                    DispatchQueue.main.async { AppSwipeController.shared.discard() }
+                }
             }
         }
 
@@ -124,35 +130,22 @@ final class GestureEngine {
             s.maxMovement = max(s.maxMovement, hypot(dx, dy))
             let isHorizontal = abs(dx) > 1.3 * abs(dy)
 
-            if let lastX = s.switcherLastX {
-                // Alternador aberto: cada passo para o lado anda um app.
-                let delta = cx - lastX
-                if abs(delta) > switcherStepDistance {
-                    let forward = delta > 0
-                    if s.usesOwnSwitcher {
-                        DispatchQueue.main.async { SwitcherController.shared.move(forward ? 1 : -1) }
-                    } else {
-                        AppSwitcher.step(forward: forward)
-                    }
-                    s.switcherLastX = lastX + (delta > 0 ? switcherStepDistance : -switcherStepDistance)
-                }
-            } else if !s.fired, fingers == settings.appSwitcher.fingers, isHorizontal, abs(dx) > switcherStartDistance {
+            if s.appSwiping {
+                DispatchQueue.main.async { AppSwipeController.shared.update(dx: dx) }
+            } else if !s.fired, fingers == swipeFingers, isHorizontal, abs(dx) > appSwipeStartDistance {
                 s.fired = true
-                s.switcherLastX = cx
-                s.usesOwnSwitcher = settings.switcher.enabled
-                let forward = dx > 0
-                if s.usesOwnSwitcher {
-                    DispatchQueue.main.async { SwitcherController.shared.show(forward: forward) }
-                } else {
-                    AppSwitcher.begin(forward: forward)
+                s.appSwiping = true
+                DispatchQueue.main.async {
+                    AppSwipeController.shared.begin()
+                    AppSwipeController.shared.update(dx: dx)
                 }
-                Log.write("alternador de apps aberto")
+                Log.write("deslizar entre apps")
             } else if !s.fired, fingers == 3 || fingers == 4, max(abs(dx), abs(dy)) > swipeDistance {
                 let dominant = max(abs(dx), abs(dy)) > 1.3 * min(abs(dx), abs(dy))
                 if dominant {
                     s.fired = true
                     let gesture = Gesture.swipe(fingers: fingers, dx: dx, dy: dy)
-                    if let gesture, !settings.isReservedByAppSwitcher(gesture) {
+                    if let gesture, !settings.isReservedByAppSwipe(gesture) {
                         recognized = gesture
                     }
                 }
@@ -161,5 +154,14 @@ final class GestureEngine {
 
         session = s
         return recognized
+    }
+
+    /// Fim do gesto: se a tela estava deslizando, decide a troca; se só preparou, descarta.
+    private func finishAppSwipe(_ s: Session) {
+        if s.appSwiping {
+            DispatchQueue.main.async { AppSwipeController.shared.end() }
+        } else if s.appSwipePrepared {
+            DispatchQueue.main.async { AppSwipeController.shared.discard() }
+        }
     }
 }

@@ -140,8 +140,8 @@ enum Gesture: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Alternar entre apps arrastando para os lados (como no Windows).
-enum AppSwitcherGesture: String, Codable, CaseIterable, Identifiable {
+/// Deslizar entre apps arrastando para os lados (como a troca de apps em tela cheia do macOS).
+enum AppSwipeGesture: String, Codable, CaseIterable, Identifiable {
     case off, threeFingers, fourFingers
     var id: String { rawValue }
 
@@ -365,7 +365,7 @@ struct AppSettings: Codable, Equatable {
     var excludedBundleIDs: [String] = ["com.apple.finder"]
 
     var gesturesEnabled = true
-    var appSwitcher: AppSwitcherGesture = .threeFingers
+    var appSwipe: AppSwipeGesture = .threeFingers
     var switcher = SwitcherSettings()
     var screenshot = ScreenshotSettings()
     var gestures: [String: ActionBinding] = [:]
@@ -378,9 +378,9 @@ struct AppSettings: Codable, Equatable {
         gestures[gesture.rawValue] ?? ActionBinding()
     }
 
-    /// Arrastes laterais usados pelo alternador de apps não disparam a ação configurada.
-    func isReservedByAppSwitcher(_ gesture: Gesture) -> Bool {
-        gesture.isHorizontalSwipe && gesture.fingers == appSwitcher.fingers
+    /// Arrastes laterais usados para deslizar entre apps não disparam a ação configurada.
+    func isReservedByAppSwipe(_ gesture: Gesture) -> Bool {
+        gesture.isHorizontalSwipe && gesture.fingers == appSwipe.fingers
     }
 
     func isExcluded(_ bundleID: String?) -> Bool {
@@ -399,7 +399,7 @@ struct AppSettings: Codable, Equatable {
         optionKeyBypass = (try? c.decodeIfPresent(Bool.self, forKey: .optionKeyBypass)) ?? d.optionKeyBypass
         excludedBundleIDs = (try? c.decodeIfPresent([String].self, forKey: .excludedBundleIDs)) ?? d.excludedBundleIDs
         gesturesEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .gesturesEnabled)) ?? d.gesturesEnabled
-        appSwitcher = (try? c.decodeIfPresent(AppSwitcherGesture.self, forKey: .appSwitcher)) ?? d.appSwitcher
+        appSwipe = c.value(.appSwipe, d.appSwipe)
         switcher = c.value(.switcher, d.switcher)
         screenshot = c.value(.screenshot, d.screenshot)
         gestures = (try? c.decodeIfPresent([String: ActionBinding].self, forKey: .gestures)) ?? d.gestures
