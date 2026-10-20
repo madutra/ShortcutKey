@@ -11,7 +11,7 @@ enum ActionKind: String, Codable, CaseIterable, Identifiable {
     // Janela
     case closeWindow, minimizeWindow, maximizeWindow, toggleFullScreen, leftHalf, rightHalf, centerWindow
     // App
-    case quitApp, hideApp
+    case quitApp, hideApp, lockScreen
     // Navegação
     case middleClick, nextTab, previousTab, back, forward
     // Personalizado
@@ -36,6 +36,7 @@ enum ActionKind: String, Codable, CaseIterable, Identifiable {
         case .centerWindow: "Centralizar janela"
         case .quitApp: "Encerrar app"
         case .hideApp: "Ocultar app"
+        case .lockScreen: "Bloquear a tela"
         case .middleClick: "Clique do meio"
         case .nextTab: "Próxima aba (⌃⇥)"
         case .previousTab: "Aba anterior (⌃⇧⇥)"
@@ -50,7 +51,7 @@ enum ActionKind: String, Codable, CaseIterable, Identifiable {
         [.none],
         [.showDesktop, .missionControl, .appExpose, .previousSpace, .nextSpace],
         [.closeWindow, .minimizeWindow, .maximizeWindow, .toggleFullScreen, .leftHalf, .rightHalf, .centerWindow],
-        [.quitApp, .hideApp],
+        [.quitApp, .hideApp, .lockScreen],
         [.middleClick, .nextTab, .previousTab, .back, .forward],
         [.customShortcut],
     ]
@@ -371,6 +372,8 @@ struct AppSettings: Codable, Equatable {
     var gestures: [String: ActionBinding] = [:]
 
     var hotkeys: [HotkeyBinding] = []
+    /// Apps em que os atalhos de teclado do ShortcutKey ficam pausados (área de trabalho remota, máquinas virtuais).
+    var keyboardPausedBundleIDs: [String] = AppSettings.remoteAndVirtualMachineApps
 
     init() {}
 
@@ -381,6 +384,24 @@ struct AppSettings: Codable, Equatable {
     /// Arrastes laterais usados para deslizar entre apps não disparam a ação configurada.
     func isReservedByAppSwipe(_ gesture: Gesture) -> Bool {
         gesture.isHorizontalSwipe && gesture.fingers == appSwipe.fingers
+    }
+
+    static let remoteAndVirtualMachineApps = [
+        "com.microsoft.rdc.macos",          // Windows App / Área de Trabalho Remota da Microsoft
+        "com.philandro.anydesk",            // AnyDesk
+        "com.teamviewer.TeamViewer",        // TeamViewer
+        "com.p5sys.jump.mac.viewer",        // Jump Desktop
+        "com.lemonmojo.RoyalTSX.App",       // Royal TSX
+        "com.citrix.receiver.nomas",        // Citrix Workspace
+        "com.parallels.desktop.console",    // Parallels Desktop
+        "com.vmware.fusion",                // VMware Fusion
+        "com.utmapp.UTM",                   // UTM
+    ]
+
+    /// Os atalhos do ShortcutKey ficam pausados com este app em foco?
+    func isKeyboardPaused(for bundleID: String?) -> Bool {
+        guard let bundleID else { return false }
+        return keyboardPausedBundleIDs.contains(bundleID)
     }
 
     func isExcluded(_ bundleID: String?) -> Bool {
@@ -404,6 +425,7 @@ struct AppSettings: Codable, Equatable {
         screenshot = c.value(.screenshot, d.screenshot)
         gestures = (try? c.decodeIfPresent([String: ActionBinding].self, forKey: .gestures)) ?? d.gestures
         hotkeys = (try? c.decodeIfPresent([HotkeyBinding].self, forKey: .hotkeys)) ?? d.hotkeys
+        keyboardPausedBundleIDs = c.value(.keyboardPausedBundleIDs, d.keyboardPausedBundleIDs)
     }
 }
 
@@ -432,8 +454,19 @@ final class SettingsStore: ObservableObject {
            let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
             loaded = decoded
         }
+        // Versões novas trazem atalhos prontos; adiciona cada um só uma vez (se o usuário apagar, não volta).
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: "migration.lockScreenHotkey") {
+            defaults.set(true, forKey: "migration.lockScreenHotkey")
+            let lock = KeyCombo(keyCode: 37, modifiers: NSEvent.ModifierFlags([.command, .option]).rawValue, display: "⌥⌘L")
+            if !loaded.hotkeys.contains(where: { $0.trigger == lock }) {
+                loaded.hotkeys.append(HotkeyBinding(trigger: lock, binding: ActionBinding(action: .lockScreen)))
+            }
+        }
+
         snapshot = loaded
         settings = loaded
+        if let data = try? JSONEncoder().encode(loaded) { defaults.set(data, forKey: Self.defaultsKey) }
     }
 
     func gestureBinding(_ gesture: Gesture) -> Binding<ActionBinding> {

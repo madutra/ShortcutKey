@@ -7,12 +7,13 @@ App gratuito e de código aberto para macOS que fica na barra de menu e permite:
 - **Deslizar entre apps com 3 dedos**: igual à troca de apps em tela cheia do macOS, mas com qualquer app aberto (funciona também com o Organizador Visual)
 - **Alternador de apps e janelas estilo AltTab** pelo teclado (⌥⇥), com miniaturas, ícones ou títulos
 - **Gestos no trackpad**: arrastar com 3 ou 4 dedos (cima/baixo/esquerda/direita) e tocar com 3, 4 ou 5 dedos
-- **Atalhos de teclado globais** e remapeamento de combinações
+- **Atalhos de teclado globais** e remapeamento de combinações (já vem com ⌥⌘L para bloquear a tela)
+- **Atalhos pausados em apps de acesso remoto** (Windows App, AnyDesk, TeamViewer, máquinas virtuais…): as teclas vão direto para a conexão
 - **Print com ⌘⇧S**: congela a tela durante a seleção, copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
 
 Ações disponíveis para gestos e atalhos: Mostrar a Mesa, Mission Control, App Exposé, trocar de mesa (Space),
 fechar/minimizar/maximizar/centralizar janela, metade esquerda/direita, tela cheia, encerrar/ocultar app,
-clique do meio, trocar de aba, voltar/avançar e qualquer atalho de teclado personalizado.
+clique do meio, trocar de aba, voltar/avançar, bloquear a tela e qualquer atalho de teclado personalizado.
 
 ## Instalação
 

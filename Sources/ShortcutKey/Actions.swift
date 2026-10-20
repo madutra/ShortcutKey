@@ -43,6 +43,7 @@ enum KeyCode {
     static let rightBracket: CGKeyCode = 30
     static let leftArrow: CGKeyCode = 123
     static let rightArrow: CGKeyCode = 124
+    static let q: CGKeyCode = 12
 }
 
 // MARK: - Dock / Mission Control
@@ -194,6 +195,7 @@ enum ActionPerformer {
 
         case .quitApp: AppActions.quit(frontApp)
         case .hideApp: AppActions.hide(frontApp)
+        case .lockScreen: InputSender.key(KeyCode.q, flags: [.maskControl, .maskCommand]) // ⌃⌘Q do macOS
 
         case .middleClick: InputSender.middleClick()
         case .nextTab: InputSender.key(KeyCode.tab, flags: .maskControl)

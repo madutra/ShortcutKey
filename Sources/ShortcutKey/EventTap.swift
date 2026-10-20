@@ -59,6 +59,10 @@ final class EventTapController {
             }
             return pass
         case .keyDown:
+            // Área de trabalho remota / máquina virtual em foco: os atalhos vão todos para ela.
+            if settings.isKeyboardPaused(for: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
+                return pass
+            }
             if handleScreenshotKey(event, settings) { return nil }
             if handleSwitcherKey(event, settings) { return nil }
             return handleKeyDown(event, settings) ? nil : pass

@@ -254,8 +254,49 @@ private struct KeyboardTab: View {
                 Text("Funcionam em qualquer app. Use \"Atalho de teclado personalizado\" para remapear uma combinação em outra.")
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                ForEach(pausedApps, id: \.self) { bundleID in
+                    HStack {
+                        AppLabel(bundleID: bundleID)
+                        Spacer()
+                        Button(role: .destructive) {
+                            store.settings.keyboardPausedBundleIDs.removeAll { $0 == bundleID }
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                Menu("Adicionar app aberto…") {
+                    ForEach(runningApps, id: \.bundleIdentifier) { app in
+                        Button(app.localizedName ?? app.bundleIdentifier ?? "?") {
+                            if let id = app.bundleIdentifier { store.settings.keyboardPausedBundleIDs.append(id) }
+                        }
+                    }
+                }
+            } header: {
+                Text("Pausar atalhos nestes apps")
+            } footer: {
+                Text("Com um destes apps em foco, nenhum atalho de teclado do ShortcutKey funciona (⌥⇥, ⌘⇧S, atalhos globais): as teclas vão direto para o app, como numa conexão de área de trabalho remota. Gestos do trackpad e botões das janelas continuam funcionando.")
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    /// Só os apps instalados (a lista padrão tem vários apps de acesso remoto que talvez nem existam aqui).
+    private var pausedApps: [String] {
+        store.settings.keyboardPausedBundleIDs.filter {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        }
+    }
+
+    private var runningApps: [NSRunningApplication] {
+        NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil && $0 != NSRunningApplication.current }
+            .filter { !store.settings.keyboardPausedBundleIDs.contains($0.bundleIdentifier!) }
+            .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
     }
 }
 
