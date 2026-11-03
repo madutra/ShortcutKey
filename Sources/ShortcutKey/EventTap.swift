@@ -8,6 +8,8 @@ final class EventTapController {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var swallowNextMouseUp = false
+    /// Botões extras do mouse cujo "apertar" foi trocado por uma ação (o "soltar" também é engolido).
+    private var swallowedButtons = Set<Int64>()
     /// Modificadores que abriram o alternador pelo teclado (soltar = escolher).
     private var switcherModifiers: NSEvent.ModifierFlags?
 
@@ -20,7 +22,7 @@ final class EventTapController {
     func start() -> Bool {
         if tap != nil { return true }
 
-        let types: [CGEventType] = [.leftMouseDown, .leftMouseUp, .keyDown, .flagsChanged]
+        let types: [CGEventType] = [.leftMouseDown, .leftMouseUp, .otherMouseDown, .otherMouseUp, .keyDown, .flagsChanged]
         let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
 
         let callback: CGEventTapCallBack = { _, type, event, _ in
@@ -66,6 +68,16 @@ final class EventTapController {
             if handleScreenshotKey(event, settings) { return nil }
             if handleSwitcherKey(event, settings) { return nil }
             return handleKeyDown(event, settings) ? nil : pass
+        case .otherMouseDown:
+            // Botões extras do mouse (roda, laterais…) com ação configurada na aba Mouse.
+            let button = event.getIntegerValueField(.mouseEventButtonNumber)
+            let binding = settings.mouse.binding(forButton: Int(button))
+            guard binding.action != .none else { return pass }
+            swallowedButtons.insert(button)
+            ActionPerformer.perform(binding)
+            return nil
+        case .otherMouseUp:
+            return swallowedButtons.remove(event.getIntegerValueField(.mouseEventButtonNumber)) != nil ? nil : pass
         case .flagsChanged:
             handleSwitcherFlags(event)
             return pass

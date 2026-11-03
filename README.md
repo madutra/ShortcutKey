@@ -8,6 +8,9 @@ App gratuito e de código aberto para macOS que fica na barra de menu e permite:
 - **Alternador de apps e janelas estilo AltTab** pelo teclado (⌥⇥), com miniaturas, ícones ou títulos
 - **Gestos no trackpad**: arrastar com 3 ou 4 dedos (cima/baixo/esquerda/direita) e tocar com 3, 4 ou 5 dedos
 - **Atalhos de teclado globais** e remapeamento de combinações (já vem com ⌥⌘L para bloquear a tela)
+- **Remapear teclas** (como as teclas extras de teclados japoneses), com importação das "Simple Modifications" do Karabiner-Elements
+- **Botões do mouse**: qualquer botão extra pode abrir o Mission Control, mostrar a Mesa, rodar um atalho etc.
+- **DPI do mouse** em mouses Logitech com HID++ (ex.: G502), sem precisar do software da Logitech
 - **Atalhos pausados em apps de acesso remoto** (Windows App, AnyDesk, TeamViewer, máquinas virtuais…): as teclas vão direto para a conexão
 - **Print com ⌘⇧S**: congela a tela durante a seleção, copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
 
@@ -24,6 +27,7 @@ clique do meio, trocar de aba, voltar/avançar, bloquear a tela e qualquer atalh
    vá em **Ajustes do Sistema › Privacidade e Segurança**, role até o fim e clique em **Abrir Mesmo Assim**.
 4. A tela de boas-vindas mostra as permissões: libere **Acessibilidade** (obrigatória) e
    **Gravação de Tela** (para miniaturas no alternador e para o print). Pronto.
+   Para mudar o DPI do mouse, o app pede também **Monitoramento de Entrada**.
 
 Funciona no macOS 14 (Sonoma) ou mais recente, em Macs Apple Silicon e Intel.
 
@@ -69,6 +73,14 @@ os dois acontecem juntos. Desative o gesto do sistema em **Ajustes › Trackpad 
 A leitura dos dedos usa o framework privado `MultitouchSupport` (o mesmo usado por MiddleClick e Jitouch).
 Por isso o app não pode ir para a Mac App Store, e uma atualização futura do macOS pode exigir ajustes.
 
+## Mouse e teclado
+
+- Botões que o mouse trata por dentro (no G502: DPI + / − e o shift) só chegam ao Mac com
+  **Mouse › Perfis da memória do mouse** desligado. Depois disso, use **Detectar outro botão** e aperte o botão.
+- O DPI escolhido fica guardado e é reaplicado quando o mouse é reconectado ou o Mac acorda.
+- O remapeamento de teclas usa o recurso do próprio macOS (`hidutil`), sem driver. Ele vale enquanto o
+  ShortcutKey estiver aberto. Se usar o Karabiner-Elements ao mesmo tempo, ele pode impedir o acesso ao mouse.
+
 ## Dicas
 
 - Segure **⌥ Option** ao clicar em um botão da janela para usar o comportamento padrão do macOS.
@@ -86,6 +98,8 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 | `Accessibility.swift` | Utilitários da API de Acessibilidade |
 | `Settings.swift` | Modelos e armazenamento das configurações |
 | `SettingsView.swift` | Tela de configurações (SwiftUI) |
+| `MouseDPI.swift`, `MouseSettingsView.swift` | DPI (HID++ da Logitech) e botões do mouse |
+| `KeyRemapper.swift` | Remapeamento de teclas e importação do Karabiner-Elements |
 | `AppSwipe.swift` | Deslizar entre apps com o trackpad (animação e fotos dos apps) |
 | `Switcher.swift`, `SwitcherView.swift` | Alternador de apps/janelas pelo teclado (estilo AltTab) |
 | `scripts/make-icon.swift` | Desenha o ícone (Daruma original) e gera `Resources/AppIcon.icns` |

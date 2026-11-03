@@ -307,6 +307,49 @@ struct ScreenshotSettings: Codable, Equatable {
     }
 }
 
+// MARK: - Remapear teclas
+
+struct KeyRemap: Codable, Equatable, Identifiable {
+    var id = UUID()
+    /// Códigos HID (página << 32 | uso), como o `hidutil` usa.
+    var from: UInt64
+    var to: UInt64
+}
+
+// MARK: - Mouse
+
+struct MouseSettings: Codable, Equatable {
+    /// Ação de cada botão extra do mouse, pelo número do botão (2 = roda, 3 = lateral de trás, 4 = lateral da frente…).
+    var buttons: [String: ActionBinding] = [:]
+    /// DPI escolhido para o sensor do mouse (nil = não mexer).
+    var dpi: Int?
+    /// Perfis da memória interna do mouse (nil = não mexer; false = o ShortcutKey controla o DPI).
+    var onboardProfiles: Bool?
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = MouseSettings()
+        buttons = c.value(.buttons, d.buttons)
+        dpi = c.value(.dpi, d.dpi)
+        onboardProfiles = c.value(.onboardProfiles, d.onboardProfiles)
+    }
+
+    func binding(forButton number: Int) -> ActionBinding {
+        buttons[String(number)] ?? ActionBinding()
+    }
+
+    static func name(ofButton number: Int) -> String {
+        switch number {
+        case 2: "Botão da roda (clique)"
+        case 3: "Botão lateral de trás"
+        case 4: "Botão lateral da frente"
+        default: "Botão \(number + 1)"
+        }
+    }
+}
+
 // MARK: - Botões da janela
 
 enum CloseButtonBehavior: String, Codable, CaseIterable, Identifiable {
@@ -369,9 +412,11 @@ struct AppSettings: Codable, Equatable {
     var appSwipe: AppSwipeGesture = .threeFingers
     var switcher = SwitcherSettings()
     var screenshot = ScreenshotSettings()
+    var mouse = MouseSettings()
     var gestures: [String: ActionBinding] = [:]
 
     var hotkeys: [HotkeyBinding] = []
+    var keyRemaps: [KeyRemap] = []
     /// Apps em que os atalhos de teclado do ShortcutKey ficam pausados (área de trabalho remota, máquinas virtuais).
     var keyboardPausedBundleIDs: [String] = AppSettings.remoteAndVirtualMachineApps
 
@@ -423,9 +468,11 @@ struct AppSettings: Codable, Equatable {
         appSwipe = c.value(.appSwipe, d.appSwipe)
         switcher = c.value(.switcher, d.switcher)
         screenshot = c.value(.screenshot, d.screenshot)
+        mouse = c.value(.mouse, d.mouse)
         gestures = (try? c.decodeIfPresent([String: ActionBinding].self, forKey: .gestures)) ?? d.gestures
         hotkeys = (try? c.decodeIfPresent([HotkeyBinding].self, forKey: .hotkeys)) ?? d.hotkeys
         keyboardPausedBundleIDs = c.value(.keyboardPausedBundleIDs, d.keyboardPausedBundleIDs)
+        keyRemaps = c.value(.keyRemaps, d.keyRemaps)
     }
 }
 

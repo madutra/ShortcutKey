@@ -8,6 +8,7 @@ struct SettingsView: View {
             WindowsTab().tabItem { Label("Janelas", systemImage: "macwindow") }
             SwitcherTab().tabItem { Label("Alternador", systemImage: "rectangle.on.rectangle") }
             TrackpadTab().tabItem { Label("Trackpad", systemImage: "hand.draw") }
+            MouseTab().tabItem { Label("Mouse", systemImage: "computermouse") }
             KeyboardTab().tabItem { Label("Teclado", systemImage: "keyboard") }
             ScreenshotTab().tabItem { Label("Print", systemImage: "camera.viewfinder") }
         }
@@ -255,6 +256,8 @@ private struct KeyboardTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            KeyRemapSection()
+
             Section {
                 ForEach(pausedApps, id: \.self) { bundleID in
                     HStack {
@@ -297,6 +300,73 @@ private struct KeyboardTab: View {
             .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil && $0 != NSRunningApplication.current }
             .filter { !store.settings.keyboardPausedBundleIDs.contains($0.bundleIdentifier!) }
             .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
+    }
+}
+
+// MARK: - Remapear teclas
+
+private struct KeyRemapSection: View {
+    @EnvironmentObject private var store: SettingsStore
+    @StateObject private var importer = KarabinerImporter()
+
+    var body: some View {
+        Section {
+            if store.settings.keyRemaps.isEmpty {
+                Text("Nenhuma tecla remapeada.").foregroundStyle(.secondary)
+            }
+            ForEach($store.settings.keyRemaps) { $remap in
+                HStack {
+                    keyPicker($remap.from)
+                    Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                    keyPicker($remap.to)
+                    Button(role: .destructive) {
+                        store.settings.keyRemaps.removeAll { $0.id == remap.id }
+                    } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            HStack {
+                Button("Adicionar") {
+                    store.settings.keyRemaps.append(KeyRemap(from: Keys.all[0].usage, to: Keys.all[0].usage))
+                }
+                if KeyRemapper.hasKarabinerConfig {
+                    Button("Importar do Karabiner-Elements") { importer.run(into: store) }
+                }
+                if let message = importer.message {
+                    Text(message).font(.callout).foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Remapear teclas")
+        } footer: {
+            Text("Troca uma tecla física por outra em todos os teclados, usando o remapeamento do próprio macOS (sem driver). Útil para as teclas extras de teclados japoneses (英数, かな, ¥). Vale enquanto o ShortcutKey estiver aberto.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func keyPicker(_ usage: Binding<UInt64>) -> some View {
+        Picker("", selection: usage) {
+            ForEach(Keys.all, id: \.usage) { Text($0.name).tag($0.usage) }
+        }
+        .labelsHidden()
+        .frame(maxWidth: 220)
+    }
+}
+
+final class KarabinerImporter: ObservableObject {
+    @Published private(set) var message: String?
+
+    func run(into store: SettingsStore) {
+        guard let result = KeyRemapper.karabinerRemaps() else {
+            message = "Não consegui ler a configuração do Karabiner."
+            return
+        }
+        let existing = Set(store.settings.keyRemaps.map(\.from))
+        let new = result.remaps.filter { !existing.contains($0.from) }
+        store.settings.keyRemaps.append(contentsOf: new)
+        message = "\(new.count) importada(s)" + (result.skipped > 0 ? ", \(result.skipped) não suportada(s)" : "")
     }
 }
 

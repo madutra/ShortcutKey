@@ -45,8 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Devolve o ⌘⇥ ao macOS.
+        // Devolve o ⌘⇥ e as teclas originais ao macOS.
         SystemHotkeys.setCommandTabEnabled(true)
+        KeyRemapper.shared.clear()
     }
 }
 
@@ -103,6 +104,8 @@ final class AppController: ObservableObject {
         ) { _ in AppSwipeController.shared.debugSnapshot() }
 
         AppSnapshots.shared.start()
+        MouseDPI.shared.start()
+        KeyRemapper.shared.start()
 
         GestureEngine.shared.onGesture = { [weak self] gesture in self?.lastGesture = gesture }
         restartTrackpad()
@@ -111,7 +114,11 @@ final class AppController: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self?.restartTrackpad() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                self?.restartTrackpad()
+                MouseDPI.shared.refresh() // alguns mouses voltam ao DPI do perfil depois de dormir
+                KeyRemapper.shared.scheduleReapply()
+            }
         }
     }
 
