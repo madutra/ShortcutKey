@@ -106,6 +106,7 @@ final class AppController: ObservableObject {
         AppSnapshots.shared.start()
         MouseDPI.shared.start()
         KeyRemapper.shared.start()
+        NotchController.shared.start()
 
         GestureEngine.shared.onGesture = { [weak self] gesture in self?.lastGesture = gesture }
         restartTrackpad()

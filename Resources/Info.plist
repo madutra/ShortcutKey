@@ -15,11 +15,23 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.0</string>
+	<string>0.4.0</string>
 	<key>CFBundleVersion</key>
-	<string>5</string>
+	<string>6</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>O ShortcutKey controla o Spotify e o Música (tocar, pausar, avançar) pelo notch.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>O ShortcutKey mostra os seus eventos no notch.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>O ShortcutKey mostra os seus eventos no notch.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>O ShortcutKey mostra e conecta os seus dispositivos Bluetooth pelo notch.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>O macOS só informa o nome da rede Wi-Fi para apps com acesso à localização. O ShortcutKey não usa a sua localização.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O macOS só informa o nome da rede Wi-Fi para apps com acesso à localização. O ShortcutKey não usa a sua localização.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHighResolutionCapable</key>

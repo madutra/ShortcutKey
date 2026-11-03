@@ -11,6 +11,7 @@ struct SettingsView: View {
             MouseTab().tabItem { Label("Mouse", systemImage: "computermouse") }
             KeyboardTab().tabItem { Label("Teclado", systemImage: "keyboard") }
             ScreenshotTab().tabItem { Label("Print", systemImage: "camera.viewfinder") }
+            NotchTab().tabItem { Label("Notch", systemImage: "rectangle.topthird.inset.filled") }
         }
         .frame(width: 700, height: 640)
     }
@@ -418,6 +419,66 @@ private struct ScreenshotTab: View {
 // MARK: - Componentes
 
 /// Menu para escolher uma ação (e o atalho, se for personalizado).
+private struct NotchTab: View {
+    @EnvironmentObject private var store: SettingsStore
+
+    private var hasNotch: Bool { NSScreen.screens.contains { $0.safeAreaInsets.top > 0 } }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Usar o notch", isOn: $store.settings.notch.enabled)
+                Group {
+                    Toggle("Abrir ao passar o mouse", isOn: $store.settings.notch.expandOnHover)
+                    if !hasNotch {
+                        Toggle("Mostrar uma ilha no topo da tela (este Mac não tem notch)", isOn: $store.settings.notch.showWithoutNotch)
+                    }
+                }
+                .disabled(!store.settings.notch.enabled)
+            } footer: {
+                Text("O notch não aparece em prints nem quando você compartilha a tela.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("O que mostrar") {
+                Group {
+                    Toggle("Música (Spotify e Música)", isOn: $store.settings.notch.music)
+                    Toggle("Mostrar a música tocando com o notch fechado", isOn: $store.settings.notch.showMusicWhenClosed)
+                        .disabled(!store.settings.notch.music)
+                    Toggle("Calendário com os eventos do dia", isOn: $store.settings.notch.calendar)
+                    Toggle("Bateria e aviso ao conectar o carregador", isOn: $store.settings.notch.battery)
+                    Toggle("Aba Arquivos (prateleira, AirDrop e Compartilhar)", isOn: $store.settings.notch.shelf)
+                    Toggle("Aba Conexões (Wi-Fi, Bluetooth e internet)", isOn: $store.settings.notch.connectivity)
+                }
+                .disabled(!store.settings.notch.enabled)
+            }
+
+            Section {
+                Group {
+                    Toggle("Notificações (mensagens, WhatsApp, e-mails…)", isOn: $store.settings.notch.notifications)
+                    Toggle("Ligações com botões de atender e recusar", isOn: $store.settings.notch.calls)
+                    Toggle("Modo de foco ligado ou desligado", isOn: $store.settings.notch.focus)
+                }
+                .disabled(!store.settings.notch.enabled)
+            } header: {
+                Text("Ilha dinâmica")
+            } footer: {
+                Text("O modo de foco é detectado pelo ícone do Foco na barra de menu (deixe Ajustes › Central de Controle › Foco em \"Mostrar quando Ativo\"). Os avisos aparecem no notch quando o macOS mostra o banner da notificação (o banner do canto continua aparecendo). Apps com notificações desligadas ou em modo de foco não aparecem.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Text("Música: na primeira vez que você usar os botões de tocar/pausar, o macOS pergunta se o ShortcutKey pode controlar o Spotify. A capa do álbum vem do link público da música no Spotify.")
+                Text("Arquivos: arraste arquivos até o notch para guardar e depois arraste de lá para outro app ou pasta (só o atalho fica guardado; o arquivo não sai do lugar). Solte em AirDrop ou Compartilhar para enviar na hora.")
+                Text("Calendário e Conexões pedem permissão na primeira vez: Calendário para ler os eventos e Localização só para o macOS mostrar o nome da rede Wi-Fi.")
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        .formStyle(.grouped)
+    }
+}
+
 struct ActionPicker: View {
     let title: String?
     @Binding var binding: ActionBinding

@@ -307,6 +307,43 @@ struct ScreenshotSettings: Codable, Equatable {
     }
 }
 
+// MARK: - Notch
+
+struct NotchSettings: Codable, Equatable {
+    var enabled = true
+    var expandOnHover = true
+    var music = true
+    var showMusicWhenClosed = true
+    var battery = true
+    var shelf = true
+    var calendar = true
+    var connectivity = true
+    var notifications = true
+    var calls = true
+    var focus = true
+    /// Em Macs (ou monitores) sem notch, mostra uma "ilha" no topo da tela principal.
+    var showWithoutNotch = false
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = NotchSettings()
+        enabled = c.value(.enabled, d.enabled)
+        expandOnHover = c.value(.expandOnHover, d.expandOnHover)
+        music = c.value(.music, d.music)
+        showMusicWhenClosed = c.value(.showMusicWhenClosed, d.showMusicWhenClosed)
+        battery = c.value(.battery, d.battery)
+        shelf = c.value(.shelf, d.shelf)
+        calendar = c.value(.calendar, d.calendar)
+        connectivity = c.value(.connectivity, d.connectivity)
+        notifications = c.value(.notifications, d.notifications)
+        calls = c.value(.calls, d.calls)
+        focus = c.value(.focus, d.focus)
+        showWithoutNotch = c.value(.showWithoutNotch, d.showWithoutNotch)
+    }
+}
+
 // MARK: - Remapear teclas
 
 struct KeyRemap: Codable, Equatable, Identifiable {
@@ -413,6 +450,7 @@ struct AppSettings: Codable, Equatable {
     var switcher = SwitcherSettings()
     var screenshot = ScreenshotSettings()
     var mouse = MouseSettings()
+    var notch = NotchSettings()
     var gestures: [String: ActionBinding] = [:]
 
     var hotkeys: [HotkeyBinding] = []
@@ -469,6 +507,7 @@ struct AppSettings: Codable, Equatable {
         switcher = c.value(.switcher, d.switcher)
         screenshot = c.value(.screenshot, d.screenshot)
         mouse = c.value(.mouse, d.mouse)
+        notch = c.value(.notch, d.notch)
         gestures = (try? c.decodeIfPresent([String: ActionBinding].self, forKey: .gestures)) ?? d.gestures
         hotkeys = (try? c.decodeIfPresent([HotkeyBinding].self, forKey: .hotkeys)) ?? d.hotkeys
         keyboardPausedBundleIDs = c.value(.keyboardPausedBundleIDs, d.keyboardPausedBundleIDs)

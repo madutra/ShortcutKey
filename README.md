@@ -11,6 +11,10 @@ App gratuito e de código aberto para macOS que fica na barra de menu e permite:
 - **Remapear teclas** (como as teclas extras de teclados japoneses), com importação das "Simple Modifications" do Karabiner-Elements
 - **Botões do mouse**: qualquer botão extra pode abrir o Mission Control, mostrar a Mesa, rodar um atalho etc.
 - **DPI do mouse** em mouses Logitech com HID++ (ex.: G502), sem precisar do software da Logitech
+- **Notch interativo** (ilha dinâmica): passe o mouse no notch para ver o Spotify, o calendário do dia, a bateria,
+  uma prateleira de arquivos com AirDrop e Compartilhar, e o Wi-Fi/Bluetooth. Mostra também notificações
+  (WhatsApp, Mensagens…), ligações com botões de atender e recusar, e quando um modo de foco liga ou desliga.
+  O notch não aparece em prints nem no compartilhamento de tela
 - **Atalhos pausados em apps de acesso remoto** (Windows App, AnyDesk, TeamViewer, máquinas virtuais…): as teclas vão direto para a conexão
 - **Print com ⌘⇧S**: congela a tela durante a seleção, copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
 
@@ -81,6 +85,14 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 - O remapeamento de teclas usa o recurso do próprio macOS (`hidutil`), sem driver. Ele vale enquanto o
   ShortcutKey estiver aberto. Se usar o Karabiner-Elements ao mesmo tempo, ele pode impedir o acesso ao mouse.
 
+## Notch
+
+- Funciona nos Macs com notch. Em telas sem notch, ligue **Notch › Mostrar uma ilha no topo da tela**.
+- Na primeira vez, o macOS pede permissão para: controlar o Spotify (botões de tocar/pausar), ler o Calendário,
+  usar o Bluetooth e a Localização (só para mostrar o nome da rede Wi-Fi; a localização não é usada).
+- As notificações e ligações são lidas dos banners do macOS pela Acessibilidade. O modo de foco é detectado pelo
+  ícone do Foco na barra de menu (Ajustes › Central de Controle › Foco › "Mostrar quando Ativo").
+
 ## Dicas
 
 - Segure **⌥ Option** ao clicar em um botão da janela para usar o comportamento padrão do macOS.
@@ -99,6 +111,9 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 | `Settings.swift` | Modelos e armazenamento das configurações |
 | `SettingsView.swift` | Tela de configurações (SwiftUI) |
 | `MouseDPI.swift`, `MouseSettingsView.swift` | DPI (HID++ da Logitech) e botões do mouse |
+| `Notch.swift`, `NotchView.swift`, `NotchPages.swift` | Notch interativo: janela, abas e animações |
+| `NowPlaying.swift`, `NotchCalendar.swift`, `Connectivity.swift` | Música, calendário, Wi-Fi/Bluetooth do notch |
+| `NotificationWatcher.swift` | Notificações, ligações e modo de foco na ilha do notch |
 | `KeyRemapper.swift` | Remapeamento de teclas e importação do Karabiner-Elements |
 | `AppSwipe.swift` | Deslizar entre apps com o trackpad (animação e fotos dos apps) |
 | `Switcher.swift`, `SwitcherView.swift` | Alternador de apps/janelas pelo teclado (estilo AltTab) |
