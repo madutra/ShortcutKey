@@ -50,12 +50,14 @@ struct CalendarPanel: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 2) {
                         ForEach(calendar.days, id: \.self) { day in
-                            DayCell(day: day,
-                                    selected: Calendar.current.isDate(day, inSameDayAs: calendar.selectedDay),
-                                    hasEvents: calendar.daysWithEvents.contains(day),
-                                    selection: selection)
-                                .id(day)
-                                .onTapGesture { calendar.select(day) }
+                            Button { calendar.select(day) } label: {
+                                DayCell(day: day,
+                                        selected: Calendar.current.isDate(day, inSameDayAs: calendar.selectedDay),
+                                        hasEvents: calendar.daysWithEvents.contains(day),
+                                        selection: selection)
+                            }
+                            .buttonStyle(.plain)
+                            .id(day)
                         }
                     }
                     .scrollTargetLayout()

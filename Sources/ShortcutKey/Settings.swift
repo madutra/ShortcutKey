@@ -321,6 +321,9 @@ struct NotchSettings: Codable, Equatable {
     var notifications = true
     var calls = true
     var focus = true
+    var camera = true
+    var levels = true
+    var replaceSystemHUD = true
     /// Em Macs (ou monitores) sem notch, mostra uma "ilha" no topo da tela principal.
     var showWithoutNotch = false
 
@@ -340,6 +343,9 @@ struct NotchSettings: Codable, Equatable {
         notifications = c.value(.notifications, d.notifications)
         calls = c.value(.calls, d.calls)
         focus = c.value(.focus, d.focus)
+        camera = c.value(.camera, d.camera)
+        levels = c.value(.levels, d.levels)
+        replaceSystemHUD = c.value(.replaceSystemHUD, d.replaceSystemHUD)
         showWithoutNotch = c.value(.showWithoutNotch, d.showWithoutNotch)
     }
 }

@@ -446,6 +446,7 @@ private struct NotchTab: View {
                     Toggle("Mostrar a música tocando com o notch fechado", isOn: $store.settings.notch.showMusicWhenClosed)
                         .disabled(!store.settings.notch.music)
                     Toggle("Calendário com os eventos do dia", isOn: $store.settings.notch.calendar)
+                    Toggle("Espelho da câmera (liga só quando você clica)", isOn: $store.settings.notch.camera)
                     Toggle("Bateria e aviso ao conectar o carregador", isOn: $store.settings.notch.battery)
                     Toggle("Aba Arquivos (prateleira, AirDrop e Compartilhar)", isOn: $store.settings.notch.shelf)
                     Toggle("Aba Conexões (Wi-Fi, Bluetooth e internet)", isOn: $store.settings.notch.connectivity)
@@ -458,6 +459,9 @@ private struct NotchTab: View {
                     Toggle("Notificações (mensagens, WhatsApp, e-mails…)", isOn: $store.settings.notch.notifications)
                     Toggle("Ligações com botões de atender e recusar", isOn: $store.settings.notch.calls)
                     Toggle("Modo de foco ligado ou desligado", isOn: $store.settings.notch.focus)
+                    Toggle("Volume e brilho pelas teclas do teclado", isOn: $store.settings.notch.levels)
+                    Toggle("Esconder o aviso de volume e brilho do macOS", isOn: $store.settings.notch.replaceSystemHUD)
+                        .disabled(!store.settings.notch.levels)
                 }
                 .disabled(!store.settings.notch.enabled)
             } header: {

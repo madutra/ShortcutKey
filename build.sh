@@ -17,6 +17,12 @@ cp "$(swift build "${BUILD_FLAGS[@]}" --show-bin-path)/ShortcutKey" "$APP/Conten
 cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns Resources/MenuBarIcon.png Resources/MenuBarIcon@2x.png "$APP/Contents/Resources/"
 
+# Ponte do "Tocando Agora" (carregada pelo perl do sistema; veja Helpers/MediaRemoteBridge.c).
+ARCH_FLAGS=(-arch "$(uname -m)")
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCH_FLAGS=(-arch arm64 -arch x86_64); fi
+clang -dynamiclib -O2 -fblocks "${ARCH_FLAGS[@]}" -mmacosx-version-min=14.0 -framework CoreFoundation -lobjc \
+    -o "$APP/Contents/Resources/MediaRemoteBridge.dylib" Helpers/MediaRemoteBridge.c
+
 # Assinatura: com o certificado "ShortcutKey Dev" (veja o README) a assinatura fica sempre igual
 # e o macOS lembra das permissões entre compilações.
 IDENTITY="ShortcutKey Dev"

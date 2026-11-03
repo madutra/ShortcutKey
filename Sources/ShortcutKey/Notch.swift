@@ -9,7 +9,7 @@ final class NotchController {
     static let shared = NotchController()
 
     /// Espaço da janela: o notch aberto cabe aqui dentro, o resto é transparente.
-    static let canvasSize = CGSize(width: 680, height: 260)
+    static let canvasSize = CGSize(width: 780, height: 340)
 
     private var panels: [NotchPanel] = []
     private var observers: [AnyCancellable] = []
@@ -33,6 +33,7 @@ final class NotchController {
             for panel in self?.panels ?? [] {
                 if note.object as? String == "close" { panel.model.isPinned = false; panel.model.close() }
                 else if note.object as? String == "charging" { panel.model.flash(.charging) }
+                else if note.object as? String == "volume" { panel.model.flash(.level(.volume, SystemLevels.volume ?? 0, muted: SystemLevels.isMuted), seconds: 6) }
                 else if let name = note.object as? String, let page = NotchPage(rawValue: name) {
                     panel.model.open(reason: .hover); panel.model.page = page; panel.model.isPinned = true
                 }
@@ -53,6 +54,9 @@ final class NotchController {
                                    title: name ?? "Foco desativado", body: "", icon: nil,
                                    symbol: name == nil ? "moon.zzz" : symbol ?? "moon.fill")
             self?.panels.forEach { $0.model.show(alert) }
+        }
+        SystemLevels.shared.onChange = { [weak self] kind, value, muted in
+            self?.panels.forEach { $0.model.flash(.level(kind, value, muted: muted)) }
         }
         PowerMonitor.shared.onPlugIn = { [weak self] in
             guard SettingsStore.shared.current.notch.battery else { return }
@@ -139,13 +143,14 @@ final class NotchPanel: NSPanel {
         isReleasedWhenClosed = false
         setFrame(frame, display: false)
 
-        let host = NSHostingView(rootView: NotchView(model: model))
+        let host = FirstClickHostingView(rootView: NotchView(model: model))
         host.frame = CGRect(origin: .zero, size: size)
         contentView = host
 
         // Fechado, os cliques passam direto (a barra de menu continua funcionando em volta do notch).
-        openObserver = model.$isOpen.combineLatest(model.$alert).sink { [weak self] open, alert in
-            let clickable = alert.map { $0.kind == .notification || $0.kind == .call } ?? false
+        openObserver = model.$isOpen.combineLatest(model.$alert, model.$flash).sink { [weak self] open, alert, flash in
+            var clickable = alert.map { $0.kind == .notification || $0.kind == .call } ?? false
+            if case .level = flash { clickable = true } // a barra de volume/brilho dá para arrastar
             self?.ignoresMouseEvents = !(open || clickable)
         }
     }
@@ -174,11 +179,19 @@ final class NotchPanel: NSPanel {
     /// Área do notch aberto (com uma folga para o mouse não fechar por pouco).
     private var openZone: CGRect {
         let size = model.openSize
-        return CGRect(x: screenFrame.midX - size.width / 2, y: screenFrame.maxY - size.height,
-                      width: size.width, height: size.height).insetBy(dx: -16, dy: -16)
+        let pageBar: CGFloat = model.pages.count > 1 ? 42 : 0 // a barra das abas fica embaixo do notch
+        return CGRect(x: screenFrame.midX - size.width / 2, y: screenFrame.maxY - size.height - pageBar,
+                      width: size.width, height: size.height + pageBar).insetBy(dx: -16, dy: -16)
     }
 
     func mouseMoved(to point: CGPoint) {
+        // Mouse em cima da barra de volume/brilho: ela não some enquanto você usa.
+        if case .level = model.flash {
+            let size = model.closedSize
+            let zone = CGRect(x: screenFrame.midX - size.width / 2, y: screenFrame.maxY - size.height,
+                              width: size.width, height: size.height)
+            if zone.contains(point) { model.keepFlash() }
+        }
         if model.isOpen {
             // Não fecha no meio de um arraste (ex.: tirando um arquivo da prateleira).
             guard !openZone.contains(point), NSEvent.pressedMouseButtons == 0 else { return }
@@ -198,6 +211,12 @@ final class NotchPanel: NSPanel {
             hoverWork = nil
         }
     }
+}
+
+/// O notch nunca vira a janela ativa: sem isto, o primeiro clique só "acordaria" a janela
+/// e toques em imagens e listas (como o espelho e os dias do calendário) se perderiam.
+private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 // MARK: - Estado do notch
@@ -224,7 +243,10 @@ enum NotchPage: String, CaseIterable {
 
 final class NotchModel: ObservableObject {
     enum OpenReason { case hover, drag }
-    enum Flash { case charging }
+    enum Flash: Equatable {
+        case charging
+        case level(SystemLevels.Kind, Float, muted: Bool)
+    }
 
     let notchSize: CGSize
     @Published private(set) var isOpen = false
@@ -259,7 +281,7 @@ final class NotchModel: ObservableObject {
 
     var settings: NotchSettings { SettingsStore.shared.current.notch }
 
-    var openSize: CGSize { CGSize(width: 640, height: notchSize.height + 172) }
+    var openSize: CGSize { CGSize(width: settings.camera ? 720 : 640, height: notchSize.height + 200) }
 
     var pages: [NotchPage] {
         var pages: [NotchPage] = []
@@ -278,6 +300,7 @@ final class NotchModel: ObservableObject {
             }
         }
         if flash == .charging { return CGSize(width: notchSize.width + 140, height: notchSize.height) }
+        if case .level = flash { return CGSize(width: 340, height: notchSize.height + 66) }
         if showsMiniPlayer { return CGSize(width: notchSize.width + 80, height: notchSize.height) }
         return notchSize
     }
@@ -298,6 +321,7 @@ final class NotchModel: ObservableObject {
         guard isOpen, !isPinned else { return }
         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { isOpen = false }
         connectivity.stopUpdating()
+        CameraMirror.shared.stop()
     }
 
     private func pageChanged() {
@@ -307,6 +331,7 @@ final class NotchModel: ObservableObject {
             if settings.calendar { calendar.start() }
         }
         if page == .connectivity { connectivity.startUpdating() } else { connectivity.stopUpdating() }
+        if page != .home { CameraMirror.shared.stop() }
     }
 
     func show(_ alert: NotchAlert) {
@@ -346,14 +371,55 @@ final class NotchModel: ObservableObject {
         dismissAlert()
     }
 
-    func flash(_ kind: Flash) {
+    /// Arrastando a barra de volume/brilho no notch.
+    func setLevel(_ kind: SystemLevels.Kind, to value: Float) {
+        let value = min(max(value, 0), 1)
+        switch kind {
+        case .volume:
+            SystemLevels.setMuted(false)
+            SystemLevels.setVolume(value)
+        case .brightness:
+            SystemLevels.setBrightness(value)
+        }
+        flash(.level(kind, value, muted: false), seconds: 2.5)
+    }
+
+    func toggleMute() {
+        let muted = !SystemLevels.isMuted
+        SystemLevels.setMuted(muted)
+        flash(.level(.volume, SystemLevels.volume ?? 0, muted: muted), seconds: 2.5)
+    }
+
+    func flash(_ kind: Flash) { flash(kind, seconds: nil) }
+
+    /// Adia o sumiço do aviso atual (ex.: o mouse está em cima dele).
+    func keepFlash() {
+        guard let flash else { return }
         flashWork?.cancel()
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { flash = kind }
         let work = DispatchWorkItem { [weak self] in
             withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { self?.flash = nil }
         }
         flashWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        _ = flash
+    }
+
+    func flash(_ kind: Flash, seconds custom: Double?) {
+        flashWork?.cancel()
+        // Volume/brilho mudando de novo: só atualiza a barra, sem animar o notch inteiro.
+        if case .level = kind, case .level = flash {
+            withAnimation(.easeOut(duration: 0.12)) { flash = kind }
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { flash = kind }
+        }
+        let work = DispatchWorkItem { [weak self] in
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { self?.flash = nil }
+        }
+        flashWork = work
+        var seconds: Double
+        if case .level = kind { seconds = 1.8 } else { seconds = 3 }
+        if let custom { seconds = custom }
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
     }
 }
 

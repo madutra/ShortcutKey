@@ -23,7 +23,7 @@ final class EventTapController {
         if tap != nil { return true }
 
         let types: [CGEventType] = [.leftMouseDown, .leftMouseUp, .otherMouseDown, .otherMouseUp, .keyDown, .flagsChanged]
-        let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+        let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) } | SystemLevels.eventMask
 
         let callback: CGEventTapCallBack = { _, type, event, _ in
             EventTapController.shared.handle(type: type, event: event)
@@ -82,7 +82,8 @@ final class EventTapController {
             handleSwitcherFlags(event)
             return pass
         default:
-            return pass
+            // Teclas de volume e brilho: o notch mostra (e, se configurado, troca o aviso do macOS).
+            return SystemLevels.shared.handle(event, type: type) ? nil : pass
         }
     }
 

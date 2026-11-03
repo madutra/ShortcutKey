@@ -14,7 +14,8 @@ App gratuito e de código aberto para macOS que fica na barra de menu e permite:
 - **Notch interativo** (ilha dinâmica): passe o mouse no notch para ver o Spotify, o calendário do dia, a bateria,
   uma prateleira de arquivos com AirDrop e Compartilhar, e o Wi-Fi/Bluetooth. Mostra também notificações
   (WhatsApp, Mensagens…), ligações com botões de atender e recusar, e quando um modo de foco liga ou desliga.
-  O notch não aparece em prints nem no compartilhamento de tela
+  Mostra o que toca em qualquer app (inclusive YouTube no navegador), tem espelho da câmera e controla
+  volume e brilho com a mesma ilha de vidro. O notch não aparece em prints nem no compartilhamento de tela
 - **Atalhos pausados em apps de acesso remoto** (Windows App, AnyDesk, TeamViewer, máquinas virtuais…): as teclas vão direto para a conexão
 - **Print com ⌘⇧S**: congela a tela durante a seleção, copia na hora para a área de transferência e mostra uma miniatura no canto; clique nela para abrir na Pré-Visualização
 
@@ -90,6 +91,12 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 - Funciona nos Macs com notch. Em telas sem notch, ligue **Notch › Mostrar uma ilha no topo da tela**.
 - Na primeira vez, o macOS pede permissão para: controlar o Spotify (botões de tocar/pausar), ler o Calendário,
   usar o Bluetooth e a Localização (só para mostrar o nome da rede Wi-Fi; a localização não é usada).
+- O "Tocando Agora" (o que toca em qualquer app, com capa) vem do framework privado `MediaRemote`. Desde o
+  macOS 15.4 ele só responde a processos da Apple, então a ponte `Helpers/MediaRemoteBridge.c` roda dentro do
+  `/usr/bin/perl` do sistema, o mesmo método de outros apps de notch. Se uma atualização do macOS fechar esse
+  caminho, o notch volta a mostrar só o Spotify e o Música.
+- As teclas de volume e brilho aparecem no notch; com "Esconder o aviso do macOS", o próprio ShortcutKey muda
+  o nível (o brilho de monitores externos continua com o macOS).
 - As notificações e ligações são lidas dos banners do macOS pela Acessibilidade. O modo de foco é detectado pelo
   ícone do Foco na barra de menu (Ajustes › Central de Controle › Foco › "Mostrar quando Ativo").
 
@@ -113,6 +120,8 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 | `MouseDPI.swift`, `MouseSettingsView.swift` | DPI (HID++ da Logitech) e botões do mouse |
 | `Notch.swift`, `NotchView.swift`, `NotchPages.swift` | Notch interativo: janela, abas e animações |
 | `NowPlaying.swift`, `NotchCalendar.swift`, `Connectivity.swift` | Música, calendário, Wi-Fi/Bluetooth do notch |
+| `CameraMirror.swift`, `SystemLevels.swift` | Espelho da câmera; volume e brilho pelas teclas |
+| `Helpers/MediaRemoteBridge.c` | Ponte do "Tocando Agora" do macOS (qualquer app, com capa) |
 | `NotificationWatcher.swift` | Notificações, ligações e modo de foco na ilha do notch |
 | `KeyRemapper.swift` | Remapeamento de teclas e importação do Karabiner-Elements |
 | `AppSwipe.swift` | Deslizar entre apps com o trackpad (animação e fotos dos apps) |

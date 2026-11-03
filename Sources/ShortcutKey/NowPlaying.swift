@@ -1,7 +1,8 @@
 import AppKit
 
-/// O que está tocando no Spotify (ou no app Música). As informações chegam pelos avisos que os próprios
-/// players publicam a cada troca de música ou de play/pause; os comandos vão por AppleScript.
+/// O que está tocando. Pelo "Tocando Agora" do macOS (qualquer app, inclusive YouTube no navegador),
+/// com a ponte em Helpers/MediaRemoteBridge.c. Se a ponte não funcionar, cai para o Spotify e o Música:
+/// as informações chegam pelos avisos desses players e os comandos vão por AppleScript.
 final class NowPlaying: ObservableObject {
     static let shared = NowPlaying()
 
@@ -23,6 +24,8 @@ final class NowPlaying: ObservableObject {
     }
 
     @Published private(set) var player: Player?
+    /// App que está tocando, quando vem do "Tocando Agora" do macOS.
+    @Published private(set) var sourceApp: NSRunningApplication?
     @Published private(set) var track: Track?
     @Published private(set) var isPlaying = false
     @Published private(set) var artwork: NSImage?
@@ -31,6 +34,12 @@ final class NowPlaying: ObservableObject {
 
     private var started = false
     private var artworkTrackID: String?
+    private let bridge = MediaRemoteBridge()
+    /// A ponte está funcionando: ela manda em tudo e os avisos do Spotify/Música são ignorados.
+    private var usingBridge = false
+
+    var sourceName: String? { sourceApp?.localizedName ?? player?.name }
+    var canOpenPlayer: Bool { sourceApp != nil || player != nil }
 
     func currentPosition(at date: Date = Date()) -> Double {
         let elapsed = isPlaying ? date.timeIntervalSince(position.at) : 0
@@ -42,6 +51,13 @@ final class NowPlaying: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
+        bridge.onUpdate = { [weak self] info in self?.receivedFromBridge(info) }
+        bridge.onStop = { [weak self] in
+            guard let self, self.usingBridge else { return }
+            self.usingBridge = false
+            self.clear()
+        }
+        bridge.start()
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: Notification.Name("com.spotify.client.PlaybackStateChanged"), object: nil, queue: .main) { [weak self] note in
             self?.received(note.userInfo, from: .spotify)
@@ -59,18 +75,27 @@ final class NowPlaying: ObservableObject {
 
     // MARK: Comandos
 
-    func playPause() { send("playpause") }
-    func next() { send("next track") }
-    func previous() { send("previous track") }
+    func playPause() {
+        // Troca o ícone na hora; a confirmação do player chega logo depois.
+        position = (currentPosition(), Date())
+        isPlaying.toggle()
+        usingBridge ? bridge.send(.togglePlayPause) : send("playpause")
+    }
+    func next() { usingBridge ? bridge.send(.next) : send("next track") }
+    func previous() { usingBridge ? bridge.send(.previous) : send("previous track") }
 
     func openPlayer() {
+        if let sourceApp {
+            sourceApp.activate()
+            return
+        }
         guard let player, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: player.rawValue) else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
     /// Lê a música atual direto do player (na primeira vez que o notch abre, antes de qualquer aviso chegar).
     func refreshIfNeeded() {
-        guard track == nil else { return }
+        guard track == nil, !usingBridge else { return }
         let target: Player? = Player.spotify.isRunning ? .spotify : Player.music.isRunning ? .music : nil
         guard let target else { return }
         let script = """
@@ -112,7 +137,7 @@ final class NowPlaying: ObservableObject {
     // MARK: Avisos dos players
 
     private func received(_ info: [AnyHashable: Any]?, from source: Player) {
-        guard let info else { return }
+        guard let info, !usingBridge else { return }
         let state = info["Player State"] as? String ?? ""
         if state == "Stopped" {
             if player == source { clear() }
@@ -149,10 +174,59 @@ final class NowPlaying: ObservableObject {
 
     private func clear() {
         player = nil
+        sourceApp = nil
         track = nil
         isPlaying = false
         artwork = nil
         artworkTrackID = nil
+    }
+
+    // MARK: "Tocando Agora" do macOS
+
+    private func receivedFromBridge(_ info: [String: Any]) {
+        usingBridge = true
+        let title = info["title"] as? String ?? ""
+        guard !title.isEmpty else {
+            // Sem informações e sem nada tocando = parou. Se ainda está tocando, as informações vêm já já.
+            if info["playing"] as? Bool != true { clear() } else { isPlaying = true }
+            return
+        }
+        let artist = info["artist"] as? String ?? ""
+        let track = Track(title: title, artist: artist, album: info["album"] as? String ?? "",
+                          id: "\(title)\u{1}\(artist)", duration: info["duration"] as? Double ?? 0)
+        let rate = info["rate"] as? Double ?? 0
+        // A velocidade (0 = pausado) é mais confiável que o aviso de "tocando", que às vezes atrasa.
+        let playing = info["rate"] != nil ? rate > 0 : info["playing"] as? Bool ?? false
+        // O tempo vem "parado" no instante em que foi lido; soma o que passou desde então.
+        var elapsed = info["elapsed"] as? Double ?? 0
+        if let timestamp = info["timestamp"] as? Double, timestamp > 0, playing, rate > 0 {
+            elapsed += max(0, Date().timeIntervalSince1970 - timestamp) * rate
+        }
+
+        player = nil
+        sourceApp = (info["pid"] as? Int).flatMap { Self.app(forPID: pid_t($0)) }
+        if self.track != track { self.track = track }
+        isPlaying = playing
+        position = (elapsed, Date())
+        if let encoded = info["artwork"] as? String {
+            artworkTrackID = track.id
+            artwork = encoded.isEmpty ? nil : Data(base64Encoded: encoded).flatMap(NSImage.init(data:))
+
+        } else if artworkTrackID != track.id {
+            artworkTrackID = track.id
+            artwork = nil
+        }
+    }
+
+    /// O som de um navegador costuma vir de um processo auxiliar: procura o app "de verdade".
+    private static func app(forPID pid: pid_t) -> NSRunningApplication? {
+        guard pid > 0, let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        if app.activationPolicy == .regular { return app }
+        let path = app.bundleURL?.path ?? ""
+        return NSWorkspace.shared.runningApplications.first { other in
+            guard other.activationPolicy == .regular, let base = other.bundleURL?.path else { return false }
+            return path.hasPrefix(base + "/")
+        } ?? app
     }
 
     // MARK: Capa
@@ -180,5 +254,86 @@ final class NowPlaying: ObservableObject {
                 }
             }.resume()
         }.resume()
+    }
+}
+
+/// Roda a ponte do "Tocando Agora" dentro do perl do sistema e lê o que ela escreve.
+private final class MediaRemoteBridge {
+    enum Command: Int32 {
+        case togglePlayPause = 2
+        case next = 4
+        case previous = 5
+    }
+
+    var onUpdate: (([String: Any]) -> Void)?
+    var onStop: (() -> Void)?
+
+    private var process: Process?
+    private var buffer = Data()
+    private var failures = 0
+
+    private static let loader = "use DynaLoader; DynaLoader::dl_load_file($ARGV[0], 0) or die DynaLoader::dl_error();"
+    private static var library: String? {
+        Bundle.main.path(forResource: "MediaRemoteBridge", ofType: "dylib")
+    }
+
+    func start() {
+        guard process == nil, let library = Self.library else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = ["-e", Self.loader, library]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        output.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            DispatchQueue.main.async { self?.received(data) }
+        }
+        process.terminationHandler = { [weak self] finished in
+            DispatchQueue.main.async { self?.stopped(status: finished.terminationStatus) }
+        }
+        do {
+            try process.run()
+            self.process = process
+            Log.write("tocando: ponte iniciada")
+        } catch {
+            Log.write("tocando: ponte não iniciou: \(error)")
+        }
+    }
+
+    func send(_ command: Command) {
+        guard let library = Self.library else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = ["-e", Self.loader, library]
+        process.environment = ["SK_MR_COMMAND": String(command.rawValue)]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+    }
+
+    private func received(_ data: Data) {
+        guard !data.isEmpty else { return }
+        buffer.append(data)
+        while let newline = buffer.firstIndex(of: 0x0A) {
+            let line = buffer[buffer.startIndex..<newline]
+            buffer.removeSubrange(buffer.startIndex...newline)
+            if let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] {
+                failures = 0
+                onUpdate?(json)
+            }
+        }
+    }
+
+    private func stopped(status: Int32) {
+        process?.standardOutput.flatMap { ($0 as? Pipe)?.fileHandleForReading.readabilityHandler = nil }
+        process = nil
+        buffer.removeAll()
+        failures += 1
+        Log.write("tocando: ponte parou (\(status))")
+        onStop?()
+        // Tenta de novo algumas vezes (ex.: depois de o Mac acordar); se nunca funcionar, fica no Spotify/Música.
+        guard failures <= 3 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(failures) * 5) { [weak self] in self?.start() }
     }
 }
