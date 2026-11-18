@@ -5,11 +5,18 @@ import UniformTypeIdentifiers
 struct NotchView: View {
     @ObservedObject var model: NotchModel
 
+    static var hasLiquidGlass: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+
     private var topRadius: CGFloat { model.isOpen ? 12 : 6 }
     /// Vidro no notch aberto e na ilha de volume/brilho; preto quando só "veste" o notch.
     private var isGlass: Bool {
         if model.isOpen { return true }
         if case .level = model.flash { return true }
+        if case .device = model.flash { return true }
+        if let alert = model.alert, alert.kind == .notification || alert.kind == .call { return true }
         return false
     }
     private var radius: CGFloat { model.isOpen ? 28 : model.notchSize.height / 2.4 }
@@ -20,12 +27,22 @@ struct NotchView: View {
     }
 
     var body: some View {
+        // Notch e barra das abas ficam fora de um GlassEffectContainer de propósito: dentro dele o
+        // vidro do notch é desenhado por cima do conteúdo e esconde tudo.
+        stack
+            .frame(width: NotchController.canvasSize.width, height: NotchController.canvasSize.height)
+            .environment(\.colorScheme, .dark)
+    }
+
+    private var stack: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
+                // Fechado (ou sem Liquid Glass): preto, para se misturar com o notch de verdade.
                 NotchShape(bottomRadius: radius, topRadius: topRadius)
                     .fill(Color.black)
+                    .opacity(isGlass && Self.hasLiquidGlass ? 0 : 1)
                 if isGlass {
-                    GlassPanelBackground(notchHeight: model.notchSize.height)
+                    GlassPanelBackground(notchHeight: model.notchSize.height, native: Self.hasLiquidGlass)
                         .transition(.opacity)
                 }
                 if model.isOpen {
@@ -38,18 +55,24 @@ struct NotchView: View {
             }
             .frame(width: size.width, height: size.height)
             .clipShape(NotchShape(bottomRadius: radius, topRadius: topRadius))
+            // Liquid Glass de verdade (macOS 26+) por trás do conteúdo, fora do recorte para a borda
+            // de luz do sistema aparecer inteira. Nos sistemas mais antigos, vidro fosco + brilho feito à mão.
+            .background {
+                if isGlass {
+                    NativeGlass(shape: NotchShape(bottomRadius: radius, topRadius: topRadius))
+                        .transition(.opacity)
+                }
+            }
             .overlay(
-                // Brilho bem suave por dentro da borda (sem linha marcada): dá volume ao vidro.
                 NotchShape(bottomRadius: radius, topRadius: topRadius)
                     .stroke(LinearGradient(colors: [.clear, .white.opacity(0.05), .white.opacity(0.12)],
                                            startPoint: .top, endPoint: .bottom), lineWidth: 3)
                     .blur(radius: 3)
                     .clipShape(NotchShape(bottomRadius: radius, topRadius: topRadius))
-                    .opacity(isGlass ? 1 : 0)
+                    .opacity(isGlass && !Self.hasLiquidGlass ? 1 : 0)
             )
             // Sombra larga e difusa: o vidro "flutua" e se mistura com o que está atrás.
-            .shadow(color: .black.opacity(isGlass ? 0.35 : 0), radius: 26, y: 12)
-            .shadow(color: .black.opacity(isGlass ? 0.25 : 0), radius: 6, y: 2)
+            .shadow(color: .black.opacity(isGlass ? 0.30 : 0), radius: 26, y: 12)
             .onDrop(of: [UTType.fileURL], isTargeted: $model.isDropTargeted) { providers in
                 guard model.settings.shelf else { return false }
                 loadFileURLs(providers) { NotchShelf.shared.add($0) }
@@ -62,8 +85,6 @@ struct NotchView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(width: NotchController.canvasSize.width, height: NotchController.canvasSize.height)
-        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -114,7 +135,9 @@ private struct ClosedNotchContent: View {
 
     @ViewBuilder
     private var indicators: some View {
-        if case .level(let kind, let value, let muted) = model.flash {
+        if case .device(let name, let symbol, let connected, let battery) = model.flash {
+            DeviceBanner(notchHeight: model.notchSize.height, name: name, symbol: symbol, connected: connected, battery: battery)
+        } else if case .level(let kind, let value, let muted) = model.flash {
             LevelControl(model: model, kind: kind, value: value, muted: muted)
         } else {
             sideIndicators
@@ -221,6 +244,55 @@ private struct AlertContent: View {
     }
 }
 
+/// Fone, teclado ou mouse Bluetooth conectando/desconectando (como os AirPods no iPhone).
+private struct DeviceBanner: View {
+    let notchHeight: CGFloat
+    let name: String
+    let symbol: String
+    let connected: Bool
+    let battery: Int?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: notchHeight)
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 38, height: 38)
+                    .modifier(GlassCircle(prominent: false))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(connected ? "Conectado" : "Desconectado")
+                        .font(.system(size: 11)).foregroundStyle(connected ? Color.green : .white.opacity(0.55))
+                }
+                Spacer(minLength: 6)
+                if let battery { BatteryRing(level: battery) }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+            .frame(maxHeight: .infinity)
+        }
+    }
+}
+
+/// Anel de bateria, como o widget de Baterias do macOS.
+private struct BatteryRing: View {
+    let level: Int
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(.white.opacity(0.18), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: CGFloat(min(max(level, 0), 100)) / 100)
+                .stroke(level <= 20 ? Color.red : .green, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(level)").font(.system(size: 10, weight: .semibold)).monospacedDigit()
+        }
+        .frame(width: 32, height: 32)
+    }
+}
+
 /// Volume ou brilho, no estilo da Central de Controle do macOS: título, nome da saída e uma barra
 /// grossa com o ícone dentro. Clique ou arraste na barra para mudar.
 private struct LevelControl: View {
@@ -231,20 +303,17 @@ private struct LevelControl: View {
 
     private var shown: Float { muted ? 0 : min(max(value, 0), 1) }
 
-    private var symbol: String {
+    private var lowSymbol: String {
         switch kind {
-        case .brightness:
-            return value < 0.35 ? "sun.min.fill" : "sun.max.fill"
-        case .volume:
-            if muted || value == 0 { return "speaker.slash.fill" }
-            return value < 0.34 ? "speaker.wave.1.fill" : value < 0.67 ? "speaker.wave.2.fill" : "speaker.wave.3.fill"
+        case .brightness: return "sun.min.fill"
+        case .volume: return muted ? "speaker.slash.fill" : "speaker.fill"
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Spacer().frame(height: model.notchSize.height)
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(kind == .volume ? "Som" : "Tela").font(.system(size: 12, weight: .semibold))
                     Spacer()
@@ -252,10 +321,25 @@ private struct LevelControl: View {
                         Text(name).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
                     }
                 }
-                AppleSlider(value: shown, symbol: symbol,
-                            onChange: { model.setLevel(kind, to: $0) },
-                            onSymbolTap: kind == .volume ? { model.toggleMute() } : nil)
-                    .frame(height: 24)
+                HStack(spacing: 10) {
+                    // Ícone baixo à esquerda (no volume, clicar liga/desliga o mudo) e alto à direita.
+                    Button { if kind == .volume { model.toggleMute() } } label: {
+                        Image(systemName: lowSymbol)
+                            .font(.system(size: 13, weight: .semibold))
+                            .contentTransition(.symbolEffect(.replace))
+                            .frame(width: 18, height: 26)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(kind == .volume ? (muted ? "Tirar do mudo" : "Deixar mudo") : "")
+
+                    GlassKnobSlider(value: shown, knobVisible: model.levelKnobVisible) { model.setLevel(kind, to: $0) }
+                        .frame(height: 26)
+
+                    Image(systemName: kind == .volume ? "speaker.wave.3.fill" : "sun.max.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 22)
+                }
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
@@ -266,51 +350,73 @@ private struct LevelControl: View {
     }
 }
 
-/// A barra dos controles do macOS: trilho de vidro, parte cheia branca e o ícone dentro, à esquerda.
-private struct AppleSlider: View {
+/// O controle deslizante do macOS 26: trilho fino, parte cheia branca e um botão de vidro que se arrasta.
+private struct GlassKnobSlider: View {
     let value: Float
-    let symbol: String
+    var knobVisible = true
     let onChange: (Float) -> Void
-    var onSymbolTap: (() -> Void)?
+    /// Enquanto o dedo/mouse segura a barra, o botão fica visível mesmo parado.
+    @GestureState private var dragging = false
+
+    private let knob = CGSize(width: 38, height: 24)
 
     var body: some View {
         GeometryReader { geo in
-            let height = geo.size.height
-            // Como no macOS, a parte cheia nunca fica menor que um círculo (onde o ícone mora).
-            let filled = height + (geo.size.width - height) * CGFloat(value)
+            let travel = max(geo.size.width - knob.width, 1)
+            let x = travel * CGFloat(value)
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.14)).modifier(GlassCapsule())
-                Capsule().fill(.white).frame(width: filled)
-                Image(systemName: symbol)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.55))
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: height, height: height)
-                    .contentShape(Circle())
-                    .onTapGesture { onSymbolTap?() }
+                Capsule().fill(.white.opacity(0.22)).frame(height: 6)
+                Capsule().fill(.white).frame(width: x + knob.width / 2, height: 6)
+                // Botão de vidro transparente, como uma lente em cima da barra: dá para ver a barra por baixo.
+                Color.clear
+                    .frame(width: knob.width, height: knob.height)
+                    .modifier(ClearGlassKnob())
+                    .scaleEffect(knobVisible || dragging ? 1 : 0.6)
+                    .opacity(knobVisible || dragging ? 1 : 0)
+                    .offset(x: x)
             }
-            .clipShape(Capsule())
-            .contentShape(Capsule())
-            .gesture(DragGesture(minimumDistance: 1).onChanged { drag in
-                let x = (drag.location.x - height / 2) / max(geo.size.width - height, 1)
-                onChange(Float(min(max(x, 0), 1)))
-            })
-            .simultaneousGesture(SpatialTapGesture().onEnded { tap in
-                guard tap.location.x > height else { return } // o toque no ícone é o mudo
-                let x = (tap.location.x - height / 2) / max(geo.size.width - height, 1)
-                onChange(Float(min(max(x, 0), 1)))
-            })
-            .animation(.easeOut(duration: 0.12), value: value)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .updating($dragging) { _, state, _ in state = true }
+                .onChanged { drag in
+                    let position = (drag.location.x - knob.width / 2) / travel
+                    onChange(Float(min(max(position, 0), 1)))
+                })
+            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.86), value: value)
+            .animation(.easeOut(duration: 0.2), value: dragging)
         }
     }
 }
 
+/// Botão do controle como uma lente de vidro quase transparente: a barra continua visível por baixo,
+/// com borda de luz e um reflexo no topo. (O vidro do sistema aqui ficava escuro demais, porque
+/// "copia" o preto do notch atrás dele.)
+private struct ClearGlassKnob: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Capsule().fill(.white.opacity(0.07)))
+            .overlay(
+                // Reflexo na metade de cima, como luz batendo no vidro.
+                Capsule()
+                    .fill(LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0)], startPoint: .top, endPoint: .center))
+                    .padding(1.5)
+            )
+            .overlay(Capsule().strokeBorder(
+                LinearGradient(colors: [.white.opacity(0.85), .white.opacity(0.18), .white.opacity(0.45)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.2))
+            .shadow(color: .black.opacity(0.22), radius: 5, y: 2)
+    }
+}
+
 private struct GlassCapsule: ViewModifier {
+    var interactive = false
+
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            content.glassEffect(.regular, in: Capsule())
+            content.glassEffect(interactive ? .regular.interactive() : .regular, in: Capsule())
         } else {
-            content.background(Capsule().fill(.ultraThinMaterial)).overlay(Capsule().strokeBorder(.white.opacity(0.15)))
+            content.background(Capsule().fill(.ultraThinMaterial)).overlay(Capsule().strokeBorder(.white.opacity(0.25)))
         }
     }
 }
@@ -321,18 +427,34 @@ private struct GlassCapsule: ViewModifier {
 /// pouco para o texto ler bem e fica preto em cima, onde encosta no notch de verdade.
 private struct GlassPanelBackground: View {
     let notchHeight: CGFloat
+    /// Com o Liquid Glass nativo, aqui só fica o escurecimento para o texto ler bem e o preto do topo.
+    let native: Bool
 
     var body: some View {
         ZStack {
-            VisualEffectBlur()
-            LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.30)], startPoint: .top, endPoint: .bottom)
-            // Reflexo sutil no topo do vidro.
-            LinearGradient(colors: [.white.opacity(0.06), .clear], startPoint: .top, endPoint: .center)
+            if !native { VisualEffectBlur() }
+            LinearGradient(colors: [.black.opacity(native ? 0.35 : 0.55), .black.opacity(native ? 0.12 : 0.30)],
+                           startPoint: .top, endPoint: .bottom)
+            if !native {
+                LinearGradient(colors: [.white.opacity(0.06), .clear], startPoint: .top, endPoint: .center)
+            }
+            // Preto em cima, onde encosta no notch de verdade (sem "costura").
             VStack(spacing: 0) {
                 LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
                     .frame(height: notchHeight + 14)
                 Spacer()
             }
+        }
+    }
+}
+
+/// O material Liquid Glass do sistema numa forma qualquer (macOS 26+).
+private struct NativeGlass<S: Shape>: View {
+    let shape: S
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            Color.clear.glassEffect(.regular.tint(.black.opacity(0.25)), in: shape)
         }
     }
 }
@@ -350,9 +472,22 @@ private struct VisualEffectBlur: NSViewRepresentable {
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
+private struct PageBarGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular.tint(.black.opacity(0.2)).interactive(), in: Capsule())
+        } else {
+            content
+                .background(ZStack { VisualEffectBlur(); Color.black.opacity(0.35) }.clipShape(Capsule()))
+                .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 2).blur(radius: 2).clipShape(Capsule()))
+        }
+    }
+}
+
 /// Barra das abas, flutuando embaixo do notch aberto (cápsula de vidro).
 private struct PageBar: View {
     @ObservedObject var model: NotchModel
+    @Namespace private var pill
 
     var body: some View {
         HStack(spacing: 2) {
@@ -367,7 +502,10 @@ private struct PageBar: View {
                     }
                     .padding(.horizontal, selected ? 11 : 9)
                     .frame(height: 26)
-                    .background(Capsule().fill(.white.opacity(selected ? 0.16 : 0)))
+                    .background {
+                        // A cápsula da aba escolhida desliza de uma aba para a outra.
+                        if selected { Capsule().fill(.white.opacity(0.16)).matchedGeometryEffect(id: "pill", in: pill) }
+                    }
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -376,15 +514,8 @@ private struct PageBar: View {
             }
         }
         .padding(4)
-        .background(
-            ZStack {
-                VisualEffectBlur()
-                Color.black.opacity(0.35)
-            }
-            .clipShape(Capsule())
-        )
-        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 2).blur(radius: 2).clipShape(Capsule()))
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .modifier(PageBarGlass())
+        .shadow(color: .black.opacity(0.30), radius: 18, y: 8)
     }
 }
 
@@ -596,14 +727,30 @@ private struct Controls: View {
     @ObservedObject var nowPlaying: NowPlaying
 
     var body: some View {
-        HStack(spacing: 10) {
-            GlassButton(symbol: "backward.fill", size: 13, diameter: 32) { nowPlaying.previous() }
-            GlassButton(symbol: nowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 17, diameter: 40, prominent: true) {
-                nowPlaying.playPause()
+        GlassGroup(spacing: 10) {
+            HStack(spacing: 10) {
+                GlassButton(symbol: "backward.fill", size: 13, diameter: 32) { nowPlaying.previous() }
+                GlassButton(symbol: nowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 17, diameter: 40, prominent: true) {
+                    nowPlaying.playPause()
+                }
+                GlassButton(symbol: "forward.fill", size: 13, diameter: 32) { nowPlaying.next() }
             }
-            GlassButton(symbol: "forward.fill", size: 13, diameter: 32) { nowPlaying.next() }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Agrupa peças de vidro vizinhas (GlassEffectContainer): renderizam juntas e se fundem quando se aproximam.
+struct GlassGroup<Content: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { content }
+        } else {
+            content
+        }
     }
 }
 

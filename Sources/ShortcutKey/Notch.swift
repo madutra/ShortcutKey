@@ -33,6 +33,9 @@ final class NotchController {
             for panel in self?.panels ?? [] {
                 if note.object as? String == "close" { panel.model.isPinned = false; panel.model.close() }
                 else if note.object as? String == "charging" { panel.model.flash(.charging) }
+                else if note.object as? String == "bluetooth" {
+                    panel.model.flash(.device(name: "Razer Hammerhead TWS X", symbol: "headphones", connected: true, battery: 60), seconds: 6)
+                }
                 else if note.object as? String == "volume" { panel.model.flash(.level(.volume, SystemLevels.volume ?? 0, muted: SystemLevels.isMuted), seconds: 6) }
                 else if let name = note.object as? String, let page = NotchPage(rawValue: name) {
                     panel.model.open(reason: .hover); panel.model.page = page; panel.model.isPinned = true
@@ -55,6 +58,13 @@ final class NotchController {
                                    symbol: name == nil ? "moon.zzz" : symbol ?? "moon.fill")
             self?.panels.forEach { $0.model.show(alert) }
         }
+        BluetoothWatcher.shared.onEvent = { [weak self] event in
+            guard SettingsStore.shared.current.notch.bluetooth else { return }
+            self?.panels.forEach {
+                $0.model.flash(.device(name: event.name, symbol: event.symbol, connected: event.connected, battery: event.battery))
+            }
+        }
+        BluetoothWatcher.shared.start()
         SystemLevels.shared.onChange = { [weak self] kind, value, muted in
             self?.panels.forEach { $0.model.flash(.level(kind, value, muted: muted)) }
         }
@@ -246,12 +256,16 @@ final class NotchModel: ObservableObject {
     enum Flash: Equatable {
         case charging
         case level(SystemLevels.Kind, Float, muted: Bool)
+        case device(name: String, symbol: String, connected: Bool, battery: Int?)
     }
 
     let notchSize: CGSize
     @Published private(set) var isOpen = false
     @Published private(set) var flash: Flash?
     @Published private(set) var alert: NotchAlert?
+    /// O botão da barra de volume/brilho só aparece enquanto o nível está mudando (tecla ou arraste).
+    @Published private(set) var levelKnobVisible = false
+    private var knobWork: DispatchWorkItem?
     private var alertWork: DispatchWorkItem?
     @Published var isDropTargeted = false
     @Published var page: NotchPage = .home { didSet { pageChanged() } }
@@ -301,6 +315,7 @@ final class NotchModel: ObservableObject {
         }
         if flash == .charging { return CGSize(width: notchSize.width + 140, height: notchSize.height) }
         if case .level = flash { return CGSize(width: 340, height: notchSize.height + 66) }
+        if case .device = flash { return CGSize(width: 340, height: notchSize.height + 58) }
         if showsMiniPlayer { return CGSize(width: notchSize.width + 80, height: notchSize.height) }
         return notchSize
     }
@@ -404,7 +419,18 @@ final class NotchModel: ObservableObject {
         _ = flash
     }
 
+    private func showKnob() {
+        knobWork?.cancel()
+        if !levelKnobVisible { withAnimation(.easeOut(duration: 0.15)) { levelKnobVisible = true } }
+        let work = DispatchWorkItem { [weak self] in
+            withAnimation(.easeIn(duration: 0.3)) { self?.levelKnobVisible = false }
+        }
+        knobWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: work)
+    }
+
     func flash(_ kind: Flash, seconds custom: Double?) {
+        if case .level(_, _, let muted) = kind, !(muted && flash != nil) { showKnob() }
         flashWork?.cancel()
         // Volume/brilho mudando de novo: só atualiza a barra, sem animar o notch inteiro.
         if case .level = kind, case .level = flash {

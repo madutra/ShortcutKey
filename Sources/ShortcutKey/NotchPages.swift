@@ -501,6 +501,16 @@ private struct SignalBars: View {
 }
 
 private struct DeviceRow: View {
+    static func batterySymbol(_ level: Int) -> String {
+        switch level {
+        case ..<13: return "battery.0percent"
+        case ..<38: return "battery.25percent"
+        case ..<63: return "battery.50percent"
+        case ..<88: return "battery.75percent"
+        default: return "battery.100percent"
+        }
+    }
+
     let device: Connectivity.BluetoothDevice
     let busy: Bool
     let action: () -> Void
@@ -514,6 +524,17 @@ private struct DeviceRow: View {
                     .background(Circle().fill(device.isConnected ? Color.accentColor : .white.opacity(0.12)))
                 Text(device.name).font(.system(size: 11)).lineLimit(1)
                 Spacer()
+                if let battery = device.battery {
+                    HStack(spacing: 3) {
+                        Image(systemName: Self.batterySymbol(battery))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(battery <= 20 ? Color.red : .green, .white.opacity(0.45))
+                        Text("\(battery)%").monospacedDigit()
+                    }
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding(.trailing, 4)
+                }
                 if busy {
                     ProgressView().controlSize(.mini)
                 } else {

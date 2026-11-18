@@ -82,7 +82,8 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
 
 - Botões que o mouse trata por dentro (no G502: DPI + / − e o shift) só chegam ao Mac com
   **Mouse › Perfis da memória do mouse** desligado. Depois disso, use **Detectar outro botão** e aperte o botão.
-- O DPI escolhido fica guardado e é reaplicado quando o mouse é reconectado ou o Mac acorda.
+- O DPI escolhido fica guardado e é reaplicado quando o mouse é reconectado ou o Mac acorda. Logo depois de
+  ligar o Mac o mouse pode demorar a responder: o app tenta de novo sozinho, e o menu tem **Reconectar mouse**.
 - O remapeamento de teclas usa o recurso do próprio macOS (`hidutil`), sem driver. Ele vale enquanto o
   ShortcutKey estiver aberto. Se usar o Karabiner-Elements ao mesmo tempo, ele pode impedir o acesso ao mouse.
 
@@ -97,6 +98,8 @@ Por isso o app não pode ir para a Mac App Store, e uma atualização futura do 
   caminho, o notch volta a mostrar só o Spotify e o Música.
 - As teclas de volume e brilho aparecem no notch; com "Esconder o aviso do macOS", o próprio ShortcutKey muda
   o nível (o brilho de monitores externos continua com o macOS).
+- Dispositivos Bluetooth mostram um aviso ao conectar/desconectar, e a aba Conexões mostra a bateria deles
+  (a mesma lista de `pmset -g accps`).
 - As notificações e ligações são lidas dos banners do macOS pela Acessibilidade. O modo de foco é detectado pelo
   ícone do Foco na barra de menu (Ajustes › Central de Controle › Foco › "Mostrar quando Ativo").
 

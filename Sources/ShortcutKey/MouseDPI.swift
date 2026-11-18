@@ -121,8 +121,12 @@ final class MouseDPI: ObservableObject {
             break
         }
         guard let mouse else {
+            Log.write("mouse: não encontrado (\(candidates.count) interface(s)\(busyName != nil ? ", ocupado" : "")\(unsupportedName != nil ? ", sem resposta de DPI" : ""))")
+            scheduleRetry()
             return publish { $0.state = busyName.map { .busy($0) } ?? unsupportedName.map { .unsupported($0) } ?? .noDevice }
         }
+        retries = 0
+        retryWork?.cancel()
         Log.write("mouse: \(mouse.name) (HID++), DPI \(mouse.currentDPI() ?? 0)")
 
         if applySaved {
@@ -131,6 +135,27 @@ final class MouseDPI: ObservableObject {
             if let dpi = saved.dpi { apply(dpi: dpi, report: false) }
         }
         readState(mouse)
+    }
+
+    /// Logo depois de ligar o Mac, o mouse aparece antes de responder (o DPI e os perfis não
+    /// chegam). Tenta de novo sozinho, cada vez esperando um pouco mais, até achar.
+    private var retries = 0
+    private var retryWork: DispatchWorkItem?
+
+    private func scheduleRetry() {
+        retryWork?.cancel()
+        let delays: [Double] = [2, 4, 8, 15, 30]
+        let delay = retries < delays.count ? delays[retries] : 60
+        retries += 1
+        let work = DispatchWorkItem { [weak self] in self?.refresh() }
+        retryWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Botão "Reconectar mouse": procura de novo agora e reaplica DPI, perfis e botões.
+    func reconnect() {
+        retries = 0
+        refresh()
     }
 
     private func apply(dpi: Int, report: Bool) {

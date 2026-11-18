@@ -75,7 +75,7 @@ struct MouseTab: View {
                 HStack {
                     Text("Nenhum mouse Logitech com DPI ajustável encontrado.").foregroundStyle(.secondary)
                     Spacer()
-                    Button("Procurar de novo") { dpi.refresh() }
+                    Button("Procurar de novo") { dpi.reconnect() }
                 }
             case .busy(let name):
                 VStack(alignment: .leading, spacing: 6) {
@@ -84,7 +84,7 @@ struct MouseTab: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Procurar de novo") { dpi.refresh() }
+                    Button("Procurar de novo") { dpi.reconnect() }
                 }
             case .unsupported(let name):
                 Text("O \(name) não permite mudar o DPI pelo computador.").foregroundStyle(.secondary)
@@ -102,7 +102,10 @@ struct MouseTab: View {
     @ViewBuilder
     private var readyRows: some View {
         LabeledContent(dpi.deviceName) {
-            Text(dpi.currentDPI.map { "\($0) DPI agora" } ?? "—").foregroundStyle(.secondary)
+            HStack {
+                Text(dpi.currentDPI.map { "\($0) DPI agora" } ?? "—").foregroundStyle(.secondary)
+                Button("Reconectar") { dpi.reconnect() }.controlSize(.small)
+            }
         }
 
         if let range = dpi.dpiRange {

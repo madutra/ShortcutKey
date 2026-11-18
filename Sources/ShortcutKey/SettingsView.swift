@@ -459,6 +459,7 @@ private struct NotchTab: View {
                     Toggle("Notificações (mensagens, WhatsApp, e-mails…)", isOn: $store.settings.notch.notifications)
                     Toggle("Ligações com botões de atender e recusar", isOn: $store.settings.notch.calls)
                     Toggle("Modo de foco ligado ou desligado", isOn: $store.settings.notch.focus)
+                    Toggle("Dispositivo Bluetooth conectado ou desconectado", isOn: $store.settings.notch.bluetooth)
                     Toggle("Volume e brilho pelas teclas do teclado", isOn: $store.settings.notch.levels)
                     Toggle("Esconder o aviso de volume e brilho do macOS", isOn: $store.settings.notch.replaceSystemHUD)
                         .disabled(!store.settings.notch.levels)

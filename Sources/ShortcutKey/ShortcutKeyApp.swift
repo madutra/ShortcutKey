@@ -180,6 +180,7 @@ struct MenuContent: View {
         .keyboardShortcut(",")
 
         Button("Reconectar trackpad") { controller.restartTrackpad() }
+        Button("Reconectar mouse") { MouseDPI.shared.reconnect() }
         Button("Permissões e boas-vindas…") { Onboarding.show() }
 
         Divider()
