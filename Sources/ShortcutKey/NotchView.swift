@@ -362,11 +362,14 @@ private struct GlassKnobSlider: View {
 
     var body: some View {
         GeometryReader { geo in
-            let travel = max(geo.size.width - knob.width, 1)
-            let x = travel * CGFloat(value)
+            let width = max(geo.size.width, 1)
+            // A barra cheia vai de ponta a ponta (0% = vazia, 100% = cheia); o botão acompanha o
+            // fim da parte cheia, sem sair das bordas.
+            let filled = width * CGFloat(value)
+            let x = min(max(filled - knob.width / 2, 0), width - knob.width)
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.22)).frame(height: 6)
-                Capsule().fill(.white).frame(width: x + knob.width / 2, height: 6)
+                Capsule().fill(.white).frame(width: filled, height: 6)
                 // Botão de vidro transparente, como uma lente em cima da barra: dá para ver a barra por baixo.
                 Color.clear
                     .frame(width: knob.width, height: knob.height)
@@ -380,8 +383,7 @@ private struct GlassKnobSlider: View {
             .gesture(DragGesture(minimumDistance: 0)
                 .updating($dragging) { _, state, _ in state = true }
                 .onChanged { drag in
-                    let position = (drag.location.x - knob.width / 2) / travel
-                    onChange(Float(min(max(position, 0), 1)))
+                    onChange(Float(min(max(drag.location.x / width, 0), 1)))
                 })
             .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.86), value: value)
             .animation(.easeOut(duration: 0.2), value: dragging)

@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import MultitouchBridge
 
 /// Marca os eventos criados pelo próprio app, para o event tap ignorá-los.
@@ -89,11 +90,37 @@ enum WindowActions {
 
         if isClose(frame, target), let previous = savedFrames[key] {
             savedFrames[key] = nil
-            AX.setFrame(window, previous)
+            animate(window, from: frame, to: previous)
         } else {
             savedFrames[key] = frame
-            AX.setFrame(window, target)
+            animate(window, from: frame, to: target)
         }
+    }
+
+    // MARK: Animação
+
+    private static var animations: [CFHashCode: Timer] = [:]
+
+    /// Leva a janela até o novo tamanho em alguns passos (~0,25 s), em vez de pular de uma vez.
+    /// A Acessibilidade só deixa mudar posição e tamanho, então a animação é feita "quadro a quadro".
+    static func animate(_ window: AXUIElement, from start: CGRect, to end: CGRect, duration: TimeInterval = 0.25) {
+        let key = CFHash(window)
+        animations[key]?.invalidate()
+        let began = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { timer in
+            let t = min((CACurrentMediaTime() - began) / duration, 1)
+            let eased = 1 - pow(1 - t, 3) // começa rápido e desacelera no fim, como o macOS
+            func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * CGFloat(eased) }
+            let frame = CGRect(x: mix(start.minX, end.minX), y: mix(start.minY, end.minY),
+                               width: mix(start.width, end.width), height: mix(start.height, end.height))
+            AX.setFrame(window, t >= 1 ? end : frame.integral)
+            if t >= 1 {
+                timer.invalidate()
+                animations[key] = nil
+            }
+        }
+        animations[key] = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     enum Half { case left, right }
@@ -103,14 +130,14 @@ enum WindowActions {
         var area = screen.visibleFrame
         area.size.width /= 2
         if half == .right { area.origin.x += area.width }
-        AX.setFrame(window, axRect(fromCocoa: area))
+        animate(window, from: frame, to: axRect(fromCocoa: area))
     }
 
     static func center(_ window: AXUIElement) {
         guard let frame = AX.frame(window), let screen = screen(containing: frame) else { return }
         let area = axRect(fromCocoa: screen.visibleFrame)
         let origin = CGPoint(x: area.midX - frame.width / 2, y: area.midY - frame.height / 2)
-        AX.setFrame(window, CGRect(origin: origin, size: frame.size))
+        animate(window, from: frame, to: CGRect(origin: origin, size: frame.size))
     }
 
     // Coordenadas: a Acessibilidade usa origem no canto superior esquerdo da tela principal;

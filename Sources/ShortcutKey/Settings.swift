@@ -558,6 +558,12 @@ final class SettingsStore: ObservableObject {
             }
         }
 
+        // O clique da roda do mouse volta a ser o padrão do macOS (não é mais personalizável).
+        if !defaults.bool(forKey: "migration.middleButtonDefault") {
+            defaults.set(true, forKey: "migration.middleButtonDefault")
+            loaded.mouse.buttons["2"] = nil
+        }
+
         snapshot = loaded
         settings = loaded
         if let data = try? JSONEncoder().encode(loaded) { defaults.set(data, forKey: Self.defaultsKey) }

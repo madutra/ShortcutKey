@@ -18,8 +18,9 @@ struct MouseTab: View {
     // MARK: Botões
 
     private var buttonNumbers: [Int] {
-        let configured = store.settings.mouse.buttons.keys.compactMap(Int.init)
-        return Array(Set([2, 3, 4] + configured)).sorted()
+        // O clique da roda (botão 2) fica sempre com o comportamento padrão do macOS.
+        let configured = store.settings.mouse.buttons.keys.compactMap(Int.init).filter { $0 != 2 }
+        return Array(Set([3, 4] + configured)).sorted()
     }
 
     private func binding(for number: Int) -> Binding<ActionBinding> {

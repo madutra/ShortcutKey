@@ -71,6 +71,7 @@ final class EventTapController {
         case .otherMouseDown:
             // Botões extras do mouse (roda, laterais…) com ação configurada na aba Mouse.
             let button = event.getIntegerValueField(.mouseEventButtonNumber)
+            guard button != 2 else { return pass } // clique da roda: sempre o padrão do macOS
             let binding = settings.mouse.binding(forButton: Int(button))
             guard binding.action != .none else { return pass }
             swallowedButtons.insert(button)
